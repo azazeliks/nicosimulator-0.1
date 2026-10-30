@@ -1,0 +1,35 @@
+[gd_scene load_steps=2 format=3 uid="uid://cowt02cj2uj2s"]
+
+[ext_resource type="Script" uid="uid://ceb1ypjeso4qj" path="res://hud.gd" id="1_37p78"]
+
+[node name="HUD" type="CanvasLayer"]
+script = ExtResource("1_37p78")
+
+[node name="ScoreLabel" type="Label" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 23.0
+grow_horizontal = 2
+text = "0"
+
+[node name="MessageLabel" type="Label" parent="."]
+offset_left = 486.0
+offset_top = 304.0
+offset_right = 628.0
+offset_bottom = 327.0
+scale = Vector2(3.64576, 4.30754)
+text = "Real Nico Simulator 2026"
+
+[node name="StartButton" type="Button" parent="."]
+offset_left = 714.0
+offset_top = 429.0
+offset_right = 770.0
+offset_bottom = 460.0
+text = "START"
+
+[node name="MessageTimer" type="Timer" parent="."]
+wait_time = 2.0
+one_shot = true
+
+[connection signal="pressed" from="StartButton" to="." method="_on_start_button_pressed"]
+[connection signal="timeout" from="MessageTimer" to="." method="_on_message_timer_timeout"]
