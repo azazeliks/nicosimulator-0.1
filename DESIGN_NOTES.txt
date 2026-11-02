@@ -1,0 +1,52 @@
+# Cat Simulator
+
+## What the game does now
+- Move with WASD, dodge mobs, score goes up each second
+- Player has health (3 HP base). Touching a mob costs 1 HP, then 1s of invulnerability (sprite blinks). Run ends at 0 HP.
+- Press SPACE or left-click to attack: a sweep through a cone aimed at the mouse (0.6s cooldown, swing takes 0.2s). Mobs are hit as the blade passes over them, once each per swing.
+- The sweep alternates direction every attack: left to right, then right to left. The first swing of each run is left to right.
+- Mobs have health (2 HP base, +1 per 30 score), flash red when hit, show a small bar once damaged, and fade out when killed.
+- Each kill gives +3 score. When a run ends, score converts to coins (5 score = 1 coin), saved permanently.
+- Between runs, the SHOP button opens an upgrade screen: Max Health, Claw Damage, Sweep Range, Move Speed (5 levels each).
+
+## Scene structure
+- Main: Player, HUD, MobPath/MobSpawnLocation, MobTimer, ScoreTimer, StartTimer, StartPosition
+- (Health bar, coins label, results text, shop and the slash nodes are all built in code, so no scene changes were needed.)
+
+## Scripts
+- save_data.gd: class SaveData. Coins + upgrade levels, saved to user://save.cfg. Upgrade definitions live in its UPGRADES constant.
+- player.gd: health, invulnerability, sweep attack, slash graphics, applies upgrades at the start of each run
+- mob.gd: health, take_damage(), died signal
+- main.gd: kill score, score -> coins, mob health scaling
+- hud.gd: health bar, coins, game over results, shop UI
+
+## Attack graphics
+- Open player.tscn, select the Player node, and look under "Slash graphics" in the Inspector.
+- Slash Texture: drag in a single image. Slash Frames: a SpriteFrames animation (wins over the texture).
+- The art can be drawn at any angle. Describe it with: Slash Pivot (pixel in the image that sits on the player, e.g. the tip of a fan), Slash Art Angle (direction the middle of the art points: 0 = right, -90 = up, 90 = down, 180 = left), Slash Art Length (pixels from pivot to far end; scaled to match the attack range).
+- Slash Lead Degrees: angle from the art's middle to its leading edge. The leading edge rides the blade and the rest trails behind. 0 centers the art on the blade.
+- Draw it for the left-to-right (clockwise) swing. The right-to-left swing is a mirror image, handled automatically. Slash Flip Y swaps this if swings look backwards.
+- Animations are stretched or squashed to last exactly Sweep Time.
+- Slash Distance: how far from the player the slash orbits (pixels). The art is scaled to fill the space from that distance out to the attack range, and the hit area still covers everything between the player and the slash.
+- Slash Scale nudges the art size. Debug Draw Attack shows the real hit area in red.
+- With no art assigned, a white placeholder trail is drawn.
+- Defaults are set for slash.png: pivot (482, 1064), angle -80, length 850, lead 54.
+
+## Tuning knobs
+- main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
+- player.gd (exported): base_max_health, base_attack_damage, base_attack_radius (sweep reach from the player, including the gap), attack_arc_degrees (sweep width), attack_cooldown, sweep_time, invulnerability_time
+- mob.gd (exported): max_health, contact_damage, hit_radius
+- save_data.gd UPGRADES: costs, growth, max levels, bonus per level
+
+## Notes
+- Needs Godot 4.1+ (SaveData uses static variables).
+- The WASD move actions and the "attack" action (Space or left click) are registered in code if they do not already exist in the Input Map.
+- To reset progress, delete the save file (Project > Open User Data Folder > save.cfg).
+
+## Known bugs
+- (none yet, but the newest changes have not been playtested)
+
+## Features i'd like to add
+- [x] Health system for player and mobs
+- [x] Ability to attack, like a short range AOE sweep
+- [x] Converting score to a permanent currency like coins, that can be used to buy upgrades
