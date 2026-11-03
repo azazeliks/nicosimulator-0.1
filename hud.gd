@@ -226,8 +226,8 @@ func _refresh_shop() -> void:
 		_shop_rows.remove_child(child)
 		child.queue_free()
 
-	for id in SaveData.UPGRADES:
-		var info: Dictionary = SaveData.UPGRADES[id]
+	for id in SaveData.available_upgrades():  # Only what the current character can buy
+		var info: Dictionary = SaveData.upgrade_info(id)  # Includes this character's wording changes
 
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)

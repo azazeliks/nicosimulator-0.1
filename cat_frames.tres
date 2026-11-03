@@ -1,0 +1,62 @@
+[gd_resource type="SpriteFrames" load_steps=3 format=3 uid="uid://nxt0qe4p2idb"]
+
+[ext_resource type="Texture2D" uid="uid://b48emedwjkfdw" path="res://dumbcatface1.png" id="1_face1"]
+[ext_resource type="Texture2D" uid="uid://b65ujt0nmnlha" path="res://dumbcatface2.png" id="2_face2"]
+
+[resource]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_face1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_face2")
+}],
+"loop": true,
+"name": &"down",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_face1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_face2")
+}],
+"loop": true,
+"name": &"left",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_face1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_face2")
+}],
+"loop": true,
+"name": &"right",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_face1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_face2")
+}],
+"loop": true,
+"name": &"up",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("1_face1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_face2")
+}],
+"loop": true,
+"name": &"walk",
+"speed": 5.0
+}]

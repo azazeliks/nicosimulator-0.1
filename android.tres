@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://character_data.gd" id="1_data"]
+[ext_resource type="PackedScene" path="res://android_sweep_attack.tscn" id="2_attack"]
+[ext_resource type="SpriteFrames" path="res://cat_frames.tres" id="3_frames"]
+
+[resource]
+script = ExtResource("1_data")
+id = "android"
+display_name = "Android"
+sprite_frames = ExtResource("3_frames")
+sprite_tint = Color(1, 0.35, 0.35, 1)
+speed = 360
+base_max_health = 3
+base_attack_damage = 2
+regen_interval = 8.0
+attack_scene = ExtResource("2_attack")
+upgrade_ids = PackedStringArray("max_health", "speed", "damage", "attack_range", "regen")

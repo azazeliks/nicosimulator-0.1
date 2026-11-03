@@ -4,12 +4,17 @@ extends Area2D
 signal hit  # Emitted when health reaches 0 (Main listens to this to end the run)
 signal health_changed(current: int, maximum: int)
 
-# Base stats. Shop upgrades are added on top of these at the start of each run.
-# The attack itself (reach, cooldown, swing time, slash art) lives on the SweepAttack child node.
-@export var speed := 400
-@export var base_max_health := 3
-@export var base_attack_damage := 1
+# Which character this player is. For now it is set in the Inspector (player.tscn);
+# later the selection screen will call set_character() instead.
+@export var character: CharacterData
 @export var invulnerability_time := 1.0  # Seconds of protection after being hit
+
+# Base stats, copied from the character in set_character(). Shop upgrades are added on top
+# of these at the start of each run.
+var speed := 400
+var base_max_health := 3
+var base_attack_damage := 1
+var base_regen_interval := 0.0  # Seconds to regenerate 1 HP (0 = no regeneration)
 
 var screen_size
 var alive := false
@@ -18,17 +23,51 @@ var alive := false
 var health := 0
 var max_health := 3
 var move_speed := 400.0
+var regen_interval := 0.0  # base_regen_interval sped up by the Regeneration upgrade
 
 var _invuln_left := 0.0
+var _regen_left := 0.0
 
-# The attack this player uses. For now it is always the SweepAttack child node.
-@onready var attack: Attack = $SweepAttack
+# The attack node of the current character (created from character.attack_scene)
+var attack: Attack
 
 
 func _ready():
 	screen_size = get_viewport_rect().size
 	_register_inputs()
+	if character != null:
+		set_character(character)
+	else:
+		push_error("Player has no character assigned. Set 'Character' on the Player node in player.tscn.")
 	hide()
+
+
+# Turns this player into the given character: stats, sprites and attack.
+func set_character(data: CharacterData) -> void:
+	character = data
+	SaveData.set_character(data.id, data.upgrade_ids, data.upgrade_overrides)  # Shop levels are saved per character
+	speed = data.speed
+	base_max_health = data.base_max_health
+	base_attack_damage = data.base_attack_damage
+	base_regen_interval = data.regen_interval
+	# self_modulate tints the sprite without touching modulate.a, which the hit-blink uses
+	$AnimatedSprite2D.self_modulate = data.sprite_tint
+
+	if data.sprite_frames != null:
+		$AnimatedSprite2D.sprite_frames = data.sprite_frames
+		$AnimatedSprite2D.animation = &"walk"
+
+	# Swap in this character's attack
+	if attack != null:
+		remove_child(attack)
+		attack.queue_free()
+		attack = null
+	if data.attack_scene != null:
+		attack = data.attack_scene.instantiate() as Attack
+		if attack == null:
+			push_error("Character '%s': attack_scene's root script must extend Attack." % data.id)
+		else:
+			add_child(attack)
 
 
 # Creates WASD movement and attack actions in code, unless you've already made
@@ -57,12 +96,14 @@ func _ensure_action(action: String, keycode: Key) -> bool:
 
 
 func _process(delta):
-	attack.tick(delta)  # Lets the attack advance its swing and cooldown
+	if attack != null:
+		attack.tick(delta)  # Lets the attack advance its swing and cooldown
 
 	if not alive:
 		return
 
 	_update_invulnerability(delta)
+	_update_regen(delta)
 
 	var velocity = Vector2.ZERO
 	if Input.is_action_pressed("move_right"): velocity.x += 1
@@ -89,7 +130,7 @@ func _process(delta):
 
 	# Held, not just pressed: the attack ignores the request while on cooldown, so
 	# holding the button swings again as soon as the cooldown ends.
-	if Input.is_action_pressed("attack"):
+	if attack != null and Input.is_action_pressed("attack"):
 		attack.try_attack(get_global_mouse_position())
 
 
@@ -105,11 +146,15 @@ func _physics_process(_delta):
 
 
 func start(pos):
+	if character == null or attack == null:
+		push_error("Player can't start: no character or attack set up.")
+		return
 	position = pos
 	apply_upgrades()
 	health = max_health
 	alive = true
 	_invuln_left = 0.0
+	_regen_left = regen_interval
 	attack.start_run()
 	$AnimatedSprite2D.modulate.a = 1.0
 	show()
@@ -117,15 +162,22 @@ func start(pos):
 	health_changed.emit(health, max_health)
 
 
-# Combines base stats with whatever the player has bought in the shop.
+# Combines base stats with whatever the player has bought in the shop (for this character).
 func apply_upgrades() -> void:
 	max_health = base_max_health + int(SaveData.bonus("max_health"))
 	move_speed = speed + SaveData.bonus("speed")
-	# The attack gets its numbers handed over: damage, reach multiplier, speed multiplier
+	# Regeneration: the bonus is a fraction (0.2 = 20% faster), so the wait between heals shrinks
+	regen_interval = base_regen_interval / (1.0 + SaveData.bonus("regen")) if base_regen_interval > 0.0 else 0.0
+	# The attack gets its numbers handed over: damage, reach multiplier, speed multiplier, and
+	# every upgrade's bonus so it can read its own unique ones (e.g. projectile_count)
+	var bonuses := {}
+	for id in SaveData.UPGRADES:
+		bonuses[id] = SaveData.bonus(id)
 	attack.configure(
 		base_attack_damage + int(SaveData.bonus("damage")),
 		1.0 + SaveData.bonus("attack_range"),
-		1.0 + SaveData.bonus("attack_speed")
+		1.0 + SaveData.bonus("attack_speed"),
+		bonuses
 	)
 
 
@@ -142,10 +194,23 @@ func take_damage(amount: int = 1) -> void:
 
 func _die() -> void:
 	alive = false
-	attack.cancel()
+	if attack != null:
+		attack.cancel()
 	hide()
 	$CollisionShape2D.set_deferred("disabled", true)
 	hit.emit()
+
+
+# Heals 1 HP every regen_interval seconds while hurt. The wait starts over once at full health.
+func _update_regen(delta: float) -> void:
+	if regen_interval <= 0.0 or health >= max_health:
+		_regen_left = regen_interval
+		return
+	_regen_left -= delta
+	if _regen_left <= 0.0:
+		health += 1
+		_regen_left = regen_interval
+		health_changed.emit(health, max_health)
 
 
 func _update_invulnerability(delta: float) -> void:

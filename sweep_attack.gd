@@ -60,8 +60,8 @@ func _ready() -> void:
 
 # ------------------------------------------------------- Attack interface
 
-func configure(new_damage: int, new_range_mult: float, new_speed_mult: float) -> void:
-	super.configure(new_damage, new_range_mult, new_speed_mult)
+func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, new_bonuses: Dictionary) -> void:
+	super.configure(new_damage, new_range_mult, new_speed_mult, new_bonuses)
 	attack_radius = base_attack_radius * range_mult
 	# Attack speed only shortens the delay between attacks. The swing itself (and the
 	# slash animation) always takes sweep_time.
