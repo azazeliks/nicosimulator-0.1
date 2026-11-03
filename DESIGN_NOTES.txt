@@ -1,76 +1,152 @@
 # Cat Simulator
 
 ## What the game does now
-- Move with WASD, dodge mobs, score goes up each second
-- Player has health (3 HP base). Touching a mob costs 1 HP, then 1s of invulnerability (sprite blinks). Run ends at 0 HP.
-- Press SPACE or left-click to attack: a sweep through a cone aimed at the mouse (0.6s cooldown, swing takes 0.2s). Mobs are hit as the blade passes over them, once each per swing.
-- HOLD the attack button (left click or Space) to keep attacking: it swings again as soon as the cooldown ends. Each swing aims at the mouse's position when it starts.
-- The sweep alternates direction every attack: left to right, then right to left. The first swing of each run is left to right.
+- Press START, pick one of 4 characters (shown in the order Nico, Seven, Alistar, Dragon) on the selection screen, press PLAY.
+- Move with WASD, dodge mobs, score goes up each second.
+- Player has health (base HP depends on the character). Touching a mob costs 1 HP, then 1s of invulnerability (sprite blinks). Run ends at 0 HP.
+- Press SPACE or left-click to attack, or HOLD it to keep attacking (it fires again as soon as the cooldown ends). Each attack aims at the mouse position when it starts. What the attack does depends on the character (see below).
+- Some characters also have a SECONDARY attack on the right mouse button (Nico and Seven so far; see "Secondary attacks"). It works independently of the left-click attack, and holding right click keeps using it as fast as its cooldown allows.
+- Mobs drift in from the edges but curve toward the player as they go (turn_rate in mob.gd; 0 = straight lines). They don't steer while being knocked back or while the player is hidden.
 - Mobs have health (2 HP base, +1 per 30 score), flash red when hit, show a small bar once damaged, and fade out when killed.
-- Each kill gives +3 score. When a run ends, score converts to coins (5 score = 1 coin), saved permanently.
-- Between runs, the SHOP button opens an upgrade screen: Max Health, Claw Damage, Sweep Range, Attack Speed, Move Speed (5 levels each).
-- Attack Speed: +15% per level (1.75x at max). It divides both the cooldown and the swing time, so the slash animation plays faster too (0.6s -> ~0.34s cooldown, 0.2s -> ~0.11s swing at max).
-- Between runs, the RESET button (under SHOP) erases all coins and upgrade levels after a confirmation dialog.
-- The player sprite is flipped horizontally compared to the original: it flips when moving right (not left).
+- Each kill gives +3 score. When a run ends, score converts to coins (5 score = 1 coin), saved permanently. Coins are shared by all characters.
+- Between runs, the SHOP (opened from the title screen, or the Upgrades button on the selection screen) sells upgrades for one character. It opens on the selected character, and the buttons at the top of the shop switch whose upgrades you are looking at (this does not change who you play). Upgrade levels are tracked per character.
+- Press ESCAPE during a run to pause. The pause screen offers Resume (or Escape again) and Exit to main menu. Exit ends the run and still converts its score to coins (EXIT_AWARDS_COINS in main.gd; false = no coins).
+- Between runs, the RESET button erases all coins and every character's upgrade levels after a confirmation dialog.
+- The last character you played is remembered and pre-selected next time.
+- All characters are available from the start (no unlocking).
+- All non-cat characters currently use the cat sprite with a colour tint as a placeholder. The sprite flips horizontally when moving right.
+
+## Characters
+Stats are the level-0 values (before shop upgrades). Edit them in each character's .tres file.
+
+| Character | HP | Speed | Damage | Attack                                  | Extra            |
+|-----------|----|-------|--------|-----------------------------------------|------------------|
+| Nico (id cat) | 3  | 400   | 1      | Slash (0.6s cooldown)       | none             |
+| Alistar (id bruiser) | 5  | 340   | 2      | Dash + shockwave (1.4s cooldown)        | grey tint        |
+| Seven (id android) | 3  | 360   | 2      | Big slash (0.8s cooldown)               | regen 1 HP / 8s, red tint |
+| Dragon    | 3  | 380   | 1      | Exploding fireballs (0.9s cooldown)     | yellow tint      |
+
+- Nico (id: cat): balanced. Slashes a cone toward the mouse. Each swing goes the opposite way to the last; the first swing of a run is left to right. Mobs are hit as the blade passes over them, once each per swing. Reach 240, arc 100 degrees, swing 0.3s.
+- Alistar (id: bruiser): on press there is a 0.3s wind-up: the direction is locked toward the mouse, the player walks at 35% speed and a warning line shows the path. Then he dashes a fixed 220 px in 0.18s (the distance does not depend on how far the mouse is). Invulnerable during the dash and for 0.3s after. At the end of the dash a shockwave (radius 170) damages every mob in range and knocks them back.
+- Seven (id: android): same slash as the cat but bigger (reach 340, arc 120 degrees), slower (0.8s cooldown, 0.35s swing) and 2 damage. Heals 1 HP every 8 seconds while hurt; the timer restarts once at full HP.
+- Dragon: fires fireballs toward the mouse (650 px/s). Each explodes on touching a mob or after a 1s fuse, damaging every mob within radius 130. Fires 1 fireball per shot; the Extra Projectiles upgrade fans out more (spread 14 degrees between them).
+
+## Secondary attacks (right click)
+- Optional, set per character in the .tres (secondary_attack_scene). Characters without one simply ignore right click. Currently: Nico and Seven.
+- Right click works whether or not left click is held or the main attack is mid-swing, unless that secondary says otherwise (the knife does).
+- Nico's throwing knife: throws a small, fast, low-damage knife (half of Nico's damage, minimum 1) toward the mouse. It hits the first mob it touches and is used up; range 750 px. It fires about every 1.05s (roughly a third of the original rate) and CANNOT be thrown while Nico's slash is mid-swing.
+- Seven's dash: instant (no wind-up). He dashes toward the mouse and is invulnerable during the dash. A moment after the dash ends, a shockwave lands at the spot where the dash ended (shown as a danger zone on the ground), damaging mobs in range without knocking them back. He is locked in place (no moving or attacking) from the dash until the shockwave lands, however long that delay is set to. It can be used during his slash.
+- Secondaries share the shop upgrades with the main attack (damage, range, attack speed, etc.); there is no separate upgrade line for them yet.
+
+## Shop upgrades
+Each character lists which upgrades it can buy (upgrade_ids in its .tres). The shop only shows those. Costs are ceil(base_cost * growth^level).
+
+| Upgrade id       | Default name       | Effect per level            | Max | Base cost | Growth | Who can buy it                    |
+|------------------|--------------------|-----------------------------|-----|-----------|--------|-----------------------------------|
+| max_health       | Max Health         | +1 max HP                   | 5   | 15        | 1.6    | everyone                          |
+| speed            | Move Speed         | +25 move speed              | 5   | 10        | 1.6    | everyone                          |
+| damage           | Slash Damage       | +1 attack damage            | 5   | 20        | 1.6    | everyone                          |
+| attack_range     | Slash Range        | +15% attack range           | 5   | 12        | 1.6    | cat, android, bruiser, dragon     |
+| attack_speed     | Attack Speed       | +15% attack speed           | 5   | 18        | 1.6    | cat, bruiser, dragon (not android)|
+| regen            | Regeneration       | +20% regen speed            | 5   | 25        | 1.6    | android only                      |
+| projectile_count | Extra Projectiles  | +1 projectile per shot      | 3   | 60        | 2.0    | dragon only (expensive: 60/120/240)|
+| knockback        | Knockback          | +25% knockback power        | 5   | 14        | 1.6    | bruiser only                      |
+| dash_distance    | Dash Distance      | +20% dash distance          | 5   | 12        | 1.6    | bruiser only                      |
+
+- Some characters rename shared upgrades in the shop (upgrade_overrides in their .tres). Dragon: "Explosion Damage" / "Explosion Size". Bruiser: "Shockwave Damage" / "Shockwave Size".
+- What "attack_range" means depends on the attack: slash reach, explosion radius, or shockwave radius.
+- Attack Speed only shortens the delay between attacks. For the slash, the swing itself (and the slash animation) always takes the same time.
+
+## Selection screen
+- START opens it. One card per character: sprite preview (with tint), name, stats including purchased upgrades (HP, Speed, Damage, plus Regen for the android), and a short ability description.
+- Clicking anywhere on a card picks that character (gold border). Upgrades opens the shop for that character. Play starts the run. Back returns to the title screen. There is no title text and no per-card Select button.
+- It is built in code in hud.gd, so there are no scene changes for it.
 
 ## Scene structure
 - Main: Player, HUD, MobPath/MobSpawnLocation, MobTimer, ScoreTimer, StartTimer, StartPosition
-- (Health bar, coins label, results text, shop, reset button + dialog and the slash nodes are all built in code, so no scene changes were needed.)
+- Player: AnimatedSprite2D, CollisionShape2D. The attack node is created in code from the character's attack scene and added as a child at run time, so it does not show in player.tscn.
+- Everything in the HUD except the score label, message label and start button (health bar, coins label, result text, shop, reset button + dialog, selection screen) is built in code.
+- Fireballs and shockwaves are drawn in code (placeholder circles/rings); no art files needed.
 
 ## Scripts
-- save_data.gd: class SaveData. Coins + upgrade levels, saved to user://save.cfg. Upgrade definitions live in its UPGRADES constant. reset() wipes all progress.
-- player.gd: health, invulnerability, sweep attack, slash graphics, applies upgrades at the start of each run (including attack speed -> current_cooldown / current_sweep_time)
-- mob.gd: health, take_damage(), died signal
-- main.gd: kill score, score -> coins, mob health scaling
-- hud.gd: health bar, coins, game over results, shop UI, reset button + confirmation dialog
+- save_data.gd: class SaveData. Coins, per-character upgrade levels, last picked character. Upgrade definitions live in its UPGRADES constant. Saved to user://save.cfg. reset() wipes everything.
+- character_data.gd: class CharacterData (a Resource). One .tres per character.
+- character_roster.gd: class CharacterRoster. The list of character .tres paths, in selection-screen order.
+- cat.tres, bruiser.tres, android.tres, dragon.tres: the four characters.
+- cat_frames.tres: shared sprite frames (all four characters use them for now).
+- attack.gd: class Attack. The interface every attack follows (see handoff notes).
+- slash_attack.gd (+ cat_slash_attack.tscn, android_slash_attack.tscn): the slash attack and its two configured scenes.
+- projectile_attack.gd, projectile.gd (+ dragon_projectile_attack.tscn): the dragon's fireballs.
+- dash_attack.gd (+ bruiser_dash_attack.tscn): the bruiser's dash and shockwave (called the "slam" in the code). Also used as Seven's secondary (android_dash_attack.tscn: instant, delayed damage-only shockwave). Planned: split into one script per character, with "slash_dash" names for Seven's (see HANDOFF_NOTES.txt).
+- throwing_knife_attack.gd, knife_projectile.gd (+ cat_knife_attack.tscn): Nico's thrown knife (secondary).
+- player.gd: movement, health, invulnerability, regen, attack input (left and right click), becomes a character via set_character().
+- mob.gd: health, take_damage(), knockback(), died signal, steering toward the player (_integrate_forces).
+- main.gd: kill score, score -> coins, mob health scaling, starts a run with the chosen character.
+- hud.gd: health bar, coins, game over results, shop UI, reset button, selection screen.
+- pause_menu.gd: class PauseMenu. The Escape pause screen (Resume / Exit to main menu), built in code and created by Main.
 
-## Attack graphics
-- Open player.tscn, select the Player node, and look under "Slash graphics" in the Inspector.
-- Slash Texture: drag in a single image. Slash Frames: a SpriteFrames animation (wins over the texture).
-- The art can be drawn at any angle. Describe it with: Slash Pivot (pixel in the image that sits on the player, e.g. the tip of a fan), Slash Art Angle (direction the middle of the art points: 0 = right, -90 = up, 90 = down, 180 = left), Slash Art Length (pixels from pivot to far end; scaled to match the attack range).
-- Slash Lead Degrees: angle from the art's middle to its leading edge. The leading edge rides the blade and the rest trails behind. 0 centers the art on the blade.
-- Draw it for the left-to-right (clockwise) swing. The right-to-left swing is a mirror image, handled automatically. Slash Flip Y swaps this if swings look backwards.
-- Animations are stretched or squashed to last exactly the current swing time (Sweep Time divided by the Attack Speed multiplier).
-- Slash Distance: how far from the player the slash orbits (pixels). The art is scaled to fill the space from that distance out to the attack range, and the hit area still covers everything between the player and the slash.
-- Slash Scale nudges the art size. Debug Draw Attack shows the real hit area in red.
+## How to add things
+- New character: make a .tres from CharacterData (copy an existing one), give it a unique id, stats, description, an attack scene and upgrade_ids, then add its path to character_roster.gd.
+- New attack type: make a script that extends Attack (see attack.gd), make a small .tscn whose root uses it, and point a character's attack_scene at it.
+- Secondary attack: same as above, but point the character's secondary_attack_scene at it. To stop it being used while the main attack is busy, override can_start_while(primary) and check primary.is_busy().
+- New upgrade: add an entry to SaveData.UPGRADES, read it with bonus("id") in the attack or in player.gd apply_upgrades(), then add the id to upgrade_ids on the characters that should sell it.
+
+## Tuning knobs
+- main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
+- Each character .tres: speed, base_max_health, base_attack_damage, regen_interval, sprite_tint, upgrade_ids, upgrade_overrides, description
+- Attack scenes (select the root node, Inspector): slash (base_attack_radius, attack_arc_degrees, attack_cooldown, slash_time, slash art settings), projectile (attack_cooldown, projectile_speed, fuse_time, base_explosion_radius, base_projectile_count, spread_degrees), dash (attack_cooldown, windup_time, windup_move_multiplier, base_dash_distance, dash_time, base_slam_radius, base_knockback_speed, knockback_time, slam_delay, knockback_enabled, invulnerable_while_dashing, post_slam_invulnerability), knife (attack_cooldown, knife_speed, base_knife_range, damage_fraction, knife_length, knife_body_radius, knife_color, muzzle_distance)
+- player.gd (exported): invulnerability_time
+- mob.gd (exported): max_health, contact_damage, hit_radius, turn_rate
+- save_data.gd UPGRADES: costs, growth, max levels, bonus per level
+- hud.gd: HEALTH_BAR_SIZE constant (top of file) sets the health bar size; the bar is red, styled in _build_health_bar()
+- hud.gd: RESET button position is START button position + Vector2(0, 90) in _build_reset_button()
+- player.gd: sprite flip direction is the flip_h line in _process (velocity.x > 0)
+
+## Slash art (slash attack)
+- Open cat_slash_attack.tscn (or android_slash_attack.tscn), select the root node, and look under "Slash graphics" in the Inspector.
+- Slash Texture: a single image. Slash Frames: a SpriteFrames animation (wins over the texture).
+- Describe the art with: Slash Pivot (pixel in the image that sits on the player), Slash Art Angle (direction the middle of the art points: 0 = right, -90 = up, 90 = down, 180 = left), Slash Art Length (pixels from pivot to far end; scaled to match the attack range).
+- Slash Lead Degrees: angle from the art's middle to its leading edge. The leading edge rides the blade and the rest trails behind.
+- Draw it for the left-to-right swing. The right-to-left swing is a mirror image, handled automatically. Slash Flip Y swaps this if swings look backwards. Slash Angle Offset is a visual-only tilt.
+- Slash Distance: how far from the player the slash orbits. Slash Scale nudges the size.
+- Debug Draw Attack shows the real hit area in red (faint, only during a swing).
 - With no art assigned, a white placeholder trail is drawn.
 - Defaults are set for slash.png: pivot (482, 1064), angle -80, length 850, lead 54.
 
 ## Debugging hitboxes
 - Collision shapes (player/mob hurtboxes, used for contact damage): Godot editor > Debug menu > Visible Collision Shapes, then run the game.
-- Sweep attack hit area: tick Debug Draw Attack on the Player node (player.tscn > Slash graphics). It is faint (15% red) and only visible during a swing. For easier viewing, temporarily raise sweep_time and attack_cooldown, or hold the attack button.
-- The sweep uses distance + angle math with each mob's hit_radius (45), NOT the mob's collision shape (about 57 px after scaling). A mob counts as hit once the blade touches its edge.
-
-## Tuning knobs
-- main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
-- player.gd (exported): base_max_health, base_attack_damage, base_attack_radius (sweep reach from the player, including the gap), attack_arc_degrees (sweep width), attack_cooldown, sweep_time (both are the level-0 values; Attack Speed divides them), invulnerability_time
-- mob.gd (exported): max_health, contact_damage, hit_radius
-- save_data.gd UPGRADES: costs, growth, max levels, bonus per level (e.g. attack_speed per_level 0.15)
-- hud.gd: RESET button position is START button position + Vector2(0, 90) in _build_reset_button()
-- player.gd: sprite flip direction is the flip_h line in _process (velocity.x > 0)
+- All attacks use distance maths with each mob's hit_radius (45), NOT the mob's collision shape (about 57 px after scaling). The slash also tests the angle. A mob counts as hit as soon as the attack touches its edge.
 
 ## Notes
-- Needs Godot 4.1+ (SaveData uses static variables).
-- The WASD move actions and the "attack" action (Space or left click) are registered in code if they do not already exist in the Input Map.
+- Needs Godot 4.1+ (SaveData uses static variables). Developed on 4.4.1.
+- The WASD move actions, the "attack" action (Space or left click) and the "attack_secondary" action (right click) are registered in code if they do not already exist in the Input Map.
 - Save data lives in user://save.cfg (Windows: %APPDATA%\Godot\app_userdata\<project name>\save.cfg). It is outside the project, so it is never committed or included in a release: every player starts fresh.
+- Old saves (from before characters existed) are migrated automatically: the old shared upgrade levels are given to the cat. The next save writes the new layout.
 - To reset progress, use the RESET button on the main menu, or delete the save file (Project > Open User Data Folder > save.cfg).
-- Existing save files are compatible with new upgrades: a missing upgrade just starts at level 0.
 
 ## Publishing a release (GitHub)
 - Commit and push: git add . / git commit -m "..." / git push (make sure .godot/ is in .gitignore).
-- Tag: git tag -a v0.2.0 -m "Version 0.2.0" / git push origin v0.2.0 (match the naming of the existing 0.1.0 tag).
+- Tag: git tag -a v0.3.0 -m "Version 0.3.0" / git push origin v0.3.0 (match the naming of the existing tags).
 - On github.com: Releases > Draft a new release > pick the tag > add notes > Publish.
 - Optional playable build: Project > Export, zip the exe + .pck, attach to the release.
 
-## Known bugs
-- (none yet, but the newest changes have not been playtested)
-- Not yet playtested: Attack Speed upgrade, RESET button, hold-to-attack, flipped sprite.
+## Known issues / not yet checked
+- The character selection screen was the last thing built. Check it was playtested: card layout, click-to-select, Play/Back/Upgrades buttons, last character remembered after restarting the game.
+- Balance has not been tuned: character stats, attack numbers and upgrade costs are first guesses. In particular the bruiser (5 HP, invulnerable dash) may be too strong, and the dragon's Extra Projectiles (60/120/240 coins) may be too cheap or too pricey.
+- Secondary attacks (Nico's knife, Seven's dash) have not been playtested: check right click while holding left click, the knife being blocked during a slash, and Seven's instant dash and delayed shockwave. Values in the attack .tscn files override script defaults, so check the Inspector if a tweak doesn't seem to apply.
+- The bruiser's Knockback and Dash Distance upgrades, the android's Regeneration upgrade and the dragon's Extra Projectiles upgrade need checking at higher levels.
+- The selection screen assumes four cards fit side by side on screen. If more characters are added, the row may need scrolling or a second row.
+- Fireballs that fly off screen only disappear when their fuse runs out (1s), which is fine at the current speed but worth remembering if the fuse or speed is raised a lot.
 
-## Features i'd like to add
+## Features I'd like to add
 - [x] Health system for player and mobs
-- [x] Ability to attack, like a short range AOE sweep
+- [x] Ability to attack, like a short range AOE slash
 - [x] Converting score to a permanent currency like coins, that can be used to buy upgrades
 - [x] Attack speed upgrade
 - [x] Reset progress button
 - [x] Hold to keep attacking
-- [x] character selection, with unique mechanics/ stats for each character
+- [x] Secondary attack on right click (Nico: throwing knife, Seven: instant dash)
+- [x] Character selection, with unique mechanics / stats for each character
+- [ ] Real art for the bruiser, android and dragon (they are tinted cat placeholders)
+- [ ] Real art for fireballs and the bruiser's shockwave (currently drawn circles)
+- [ ] Balance pass on characters and upgrade costs

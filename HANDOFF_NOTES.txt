@@ -1,139 +1,273 @@
-# HANDOFF NOTES (written for the next Claude)
+# HANDOFF NOTES (written for the next Claude / developer)
 
 The user is continuing a Godot 4 game started in earlier chats. You will not remember
 those chats, so everything you need is here plus the files they upload. Read this file
-first, then read every uploaded .gd and .tscn before changing anything.
+first, then DESIGN_NOTES.txt, then read every uploaded .gd, .tscn and .tres before changing anything.
 
 ## The project
-- Godot 4.1+ (SaveData uses static variables). Exact minor version unknown, ask if it matters.
+- Godot 4.1+ (SaveData uses static variables). The user runs 4.4.1.
 - Design notes call it "Cat Simulator". The title screen text says "Real Nico Simulator 2026".
-  The player character is a cat (sprites dumbcatface1.png / dumbcatface2.png).
-- Dodge-and-fight game: WASD movement, mobs drift across the screen, the player
-  has health and a mouse-aimed sweep attack. Score ticks up each second and per kill. At game
-  over, score converts to permanent coins that buy upgrades in a shop.
+  The base character is a cat (sprites dumbcatface1.png / dumbcatface2.png).
+- Dodge-and-fight game: WASD movement, mobs drift across the screen, the player has health and
+  a mouse-aimed attack. Score ticks up each second and per kill. At game over, score converts to
+  permanent coins that buy upgrades in a shop.
 - The user is learning Godot and git as they go. Explain things plainly, and say what each
-  step does and why.
+  step does and why. The user commits to git and tests after each step.
 
-## Scene structure
-- Main (Node): Player (instance), HUD (instance), MobTimer, ScoreTimer, StartTimer,
-  StartPosition (Marker2D), MobPath (Path2D) / MobSpawnLocation (PathFollow2D)
-- Main connections: Player.hit -> Main.game_over, HUD.start_game -> Main.new_game, the three
-  timers -> their handlers in main.gd
-- Player (Area2D): AnimatedSprite2D, CollisionShape2D. body_entered -> _on_body_entered
-- Mob (RigidBody2D, group "mobs"): AnimatedSprite2D, VisibleOnScreenNotifier2D, CollisionShape2D
-- HUD (CanvasLayer): ScoreLabel, MessageLabel, StartButton, MessageTimer. Everything else in
-  the HUD (health bar, coins label, result label, shop, reset button) is built in code in hud.gd.
+## Status: character selection feature
+All six planned steps are DONE:
+1. Slash moved into its own attack script (no change in how it plays).
+2. Character resource added; the cat runs through it. Upgrades saved per character.
+3. Android added (bigger/slower slash, 2 damage, HP regeneration). Per-character upgrade lists.
+4. Dragon added (exploding fireballs, expensive Extra Projectiles upgrade). Per-character wording for upgrades.
+5. Bruiser added (dash that ends in a knockback shockwave).
+6. Selection screen built in code (hud.gd) with stats and descriptions. Last pick is saved.
+The user confirmed steps 1 to 5 work in the editor. Step 6 (selection screen) was delivered last;
+the user had not reported on it yet when these notes were written. Ask them to confirm it.
+Decisions the user made: upgrades are tracked PER CHARACTER; characters are ALL AVAILABLE FROM THE START
+(no unlocking); some upgrades are shared (Max Health, Move Speed) and some are unique to a character.
 
-## How each script works now
-player.gd
-- Input: WASD and the "attack" action (Space or left mouse) are registered in code at _ready
-  if they don't already exist in the Input Map.
-- Stats: base_max_health, base_attack_damage, base_attack_radius, speed, attack_cooldown,
-  sweep_time, invulnerability_time. apply_upgrades() combines base stats with SaveData bonuses
-  at the start of every run (called from start()).
-- Health: take_damage() with invulnerability frames (sprite blinks). _die() emits `hit`.
-  health_changed(current, maximum) feeds the HUD. _physics_process also re-checks overlapping
-  mobs so a mob that stays overlapped after i-frames still hurts.
-- Attack: a timed sweep, not an instant hit. _attack() locks the aim direction at the mouse,
-  then _update_sweep() moves a "blade" angle across attack_arc_degrees over sweep_time (ease-out).
-  _apply_sweep_hits() damages each mob once, when the blade reaches it. Hit test is distance
-  from the player (no inner cutoff) plus an angle test widened by the mob's hit_radius.
-  Direction alternates every attack (_next_dir), first swing of a run is left to right.
-- Attack speed (the shop upgrade) ONLY shortens the cooldown. The swing and slash animation
-  always take sweep_time. The cooldown is floored at the swing time.
-- Slash art is built in code (_setup_slash): SlashPivot (rotates with the blade) ->
-  SlashMirror (flips for the other swing, and sits slash_distance away from the player) ->
-  SlashSprite (AnimatedSprite2D). The art is described by exports, not by convention:
-  slash_pivot (pixel in the image that sits on the orbit point), slash_art_angle (which way the
-  middle of the art points), slash_art_length, slash_lead_degrees, slash_scale, slash_distance,
-  slash_flip_y, slash_angle_offset (visual-only tilt, mirrored between swings). The art is scaled
-  to fill the space from slash_distance out to attack_radius, and the animation is stretched to
-  last sweep_time. Assumes every animation frame has the same canvas size and pivot.
-  debug_draw_attack draws the real hit area in red. With no art, a white placeholder is drawn.
+## Changes since the above (latest chat)
+- Display names changed: cat = Nico, android = Seven, bruiser = Alistar, dragon unchanged. The IDs (cat, android, bruiser, dragon) are NOT changed, because they are save-file keys.
+- Roster order is now cat, android, bruiser, dragon (character_roster.gd).
+- Health bar is red and bigger (hud.gd, HEALTH_BAR_SIZE).
+- Attack interface gained movement_speed_multiplier() (default 1.0); player.gd multiplies walking speed by it.
+- Mobs now steer toward the player (mob.gd _integrate_forces, turn_rate export; the player joins group "player" in player.gd _ready). The shop has a character picker (hud.gd _shop_character, _refresh_shop_picker): it opens on the selected character and switching it doesn't change who is played; SaveData's current character is switched to match while the shop is open and restored on close.
+- NEW: optional SECONDARY ATTACK on the right mouse button (see "Secondary attacks" below). Nico gets a throwing
+  knife; Seven gets an instant dash that ends in a delayed, damage-only shockwave. Untested until the user runs it.
+- Alistar's dash now has a wind-up phase (dash_attack.gd: windup_time, windup_move_multiplier) before the dash and slam. Direction is locked at the moment of the press. Untested until the user runs it.
 
-mob.gd
-- max_health, contact_damage, hit_radius exports. take_damage() flashes red, shows a small
-  health bar once damaged, and _die() emits `died`, removes the mob from group "mobs", and
-  fades it out. Mobs that leave the screen free themselves.
+## Secondary attacks (right click)
+- CharacterData has an optional secondary_attack_scene (same rules as attack_scene: the root script must extend
+  Attack; empty = no secondary). Player.set_character() instantiates it into player.secondary_attack, and the player
+  configures, ticks, starts and cancels it exactly like the primary. It gets the same configure() numbers and
+  decides which of them it uses. The "attack_secondary" input action (right mouse) is registered in code in
+  player.gd _register_inputs() if it doesn't already exist in the Input Map.
+- Input: player.gd _handle_attack_input() polls the held right button FIRST and on its own, then the primary. So
+  right click fires whether or not left click is held or the primary is mid-swing. Both are skipped while an
+  attack is moving the player (a dash).
+- Attack interface gained two optional hooks (defaults keep old attacks working):
+  - is_busy() -> bool: true while the attack is mid-swing / mid-cast. SlashAttack: while slashing.
+    DashAttack: during wind-up and dash.
+  - can_start_while(primary: Attack) -> bool: asked by the player before it triggers a SECONDARY. Default true.
+- Nico (cat): ThrowingKnifeAttack (throwing_knife_attack.gd) + knife_projectile.gd (class KnifeProjectile, group
+  "knives", cancel() clears it) + cat_knife_attack.tscn. Small, fast, low-damage knife toward the mouse; hits the
+  first mob it touches. Defaults: cooldown 1.05s (about a third of the original 0.35s rate), speed 1400, range 750,
+  damage_fraction 0.5 of the character's damage (min 1). It overrides can_start_while so it CANNOT be thrown while
+  Nico's slash is mid-swing (a refused throw doesn't use up the cooldown).
+- Seven (android): a DashAttack as the secondary. windup_time is 0 on its scene, so the dash starts the instant
+  the button is pressed (no wind-up line, no slowdown). It uses DashAttack's optional extras: slam_delay (the
+  shockwave lands a moment AFTER the dash ends, at the spot where the dash ended, shown as a danger zone) and
+  knockback_enabled = false (damage only). Unlike the knife, it can be used during a slash. While the shockwave charges, DashAttack.is_controlling_movement() stays true (export lock_until_slam), so Seven is rooted until it lands; it follows the _slam_pending state, not a timer.
+- Values saved in the attack .tscn files override script defaults: if a nerf or tweak doesn't seem to apply
+  (knife attack_cooldown, Seven's windup_time), check the scene's root node in the Inspector.
+- Seven's and Nico's secondaries use the same shop upgrades as their primaries (damage, attack_range, attack_speed,
+  plus dash_distance / knockback where the scene reads them). No separate upgrade line exists yet.
 
-main.gd
-- Constants: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP (mobs get +1 HP
-  per N score so damage upgrades stay useful). Connects Player.health_changed to HUD.update_health.
-  game_over() converts score to coins, saves, and calls HUD.show_game_over().
+## Architecture in a few lines
+- Main (Node) owns Player, HUD and the timers. HUD emits start_game(character) when PLAY is pressed;
+  Main.new_game(character) calls Player.set_character(character), then Player.start().
+- Characters are DATA: a CharacterData resource (.tres) per character. CharacterRoster lists them.
+- Attacks are SCRIPTS that extend Attack. A character points at an attack SCENE (a tiny .tscn whose
+  root node uses the attack script). Player.set_character() instantiates it and adds it as a child.
+  A character can also point at a secondary_attack_scene, fired with right click.
+- SaveData is static (no autoload). Coins are shared; upgrade levels are stored per character id.
 
-hud.gd
-- Health bar, coins label, results text, SHOP button (opens an upgrade shop built in code), and
-  a reset-progress button with a confirmation dialog (the user added this one themselves).
+## Files
+Characters and roster
+- character_data.gd (class CharacterData, Resource): id, display_name, description, sprite_frames,
+  sprite_tint, speed, base_max_health, base_attack_damage, regen_interval (0 = none), attack_scene,
+  secondary_attack_scene (optional, right click), upgrade_ids (what the shop offers; empty = everything), upgrade_overrides ({id: {name, desc}}).
+- character_roster.gd (class CharacterRoster): PATHS list in selection-screen order; all(), find_by_id().
+- cat.tres, bruiser.tres, android.tres, dragon.tres; cat_frames.tres is the shared sprite frames.
+  Non-cat characters are the cat sprite with a sprite_tint (grey, red, yellow) until real art exists.
+  Sprite frames must contain the animations "walk" and "up" (player.gd plays them).
 
-save_data.gd (class_name SaveData, static, no autoload)
-- Coins and upgrade levels saved with ConfigFile to user://save.cfg.
-- UPGRADES dictionary holds every shop item: max_health, damage (shown as "Slash Damage"),
-  attack_range, attack_speed, speed. Each has base_cost, growth, max_level, per_level.
-  Player reads bonuses with SaveData.bonus("id").
+Attacks
+- attack.gd (class Attack, extends Node2D): the interface. The player only calls these:
+  - configure(damage, range_mult, speed_mult, bonuses) at the start of each run. `bonuses` is a
+    dictionary of EVERY upgrade's bonus by id; read your own unique ones with bonus("id").
+  - start_run(), cancel(), tick(delta), try_attack(target) -> bool.
+  - is_controlling_movement(): true while the attack moves the player itself (dash); the player then
+    skips its normal movement and attack input.
+  - is_invulnerable(): true while the player should take no damage; checked in Player.take_damage().
+  - is_busy() and can_start_while(primary): see "Secondary attacks" above. The player also checks the
+    secondary's is_controlling_movement(), movement_speed_multiplier() and is_invulnerable().
+- slash_attack.gd (class SlashAttack) + cat_slash_attack.tscn + android_slash_attack.tscn.
+  The slash and all the slash-art exports live on the attack scene's root node. Per-attack values saved
+  in those .tscn files (slash_time, slash_frames, slash_flip_y, slash_angle_offset...) override script defaults.
+- projectile_attack.gd (class ProjectileAttack) + projectile.gd (class Projectile) + dragon_projectile_attack.tscn.
+  Projectiles are added to the CURRENT SCENE (not under the player), join group "projectiles", and
+  cancel() clears that group. They are drawn in code.
+- dash_attack.gd (class DashAttack) + bruiser_dash_attack.tscn. Moves the player in tick(), then _slam():
+  damage + mob.knockback(). Drawn in code. Optional extras for secondary use: slam_delay (delayed shockwave
+  at the dash's end point), knockback_enabled (false = damage only). windup_time 0 = instant dash.
+- throwing_knife_attack.gd (class ThrowingKnifeAttack) + knife_projectile.gd (class KnifeProjectile) +
+  cat_knife_attack.tscn: Nico's secondary. Knives are added to the CURRENT SCENE, join group "knives".
+
+Core
+- player.gd: set_character(data) copies stats, swaps sprites/tint, instantiates the attack, and calls
+  SaveData.set_character(id, upgrade_ids, upgrade_overrides). apply_upgrades() builds the bonuses
+  dictionary and calls attack.configure(). Regeneration lives here (_update_regen). The @export
+  `character` on the Player node in player.tscn is only a default (cat.tres); at runtime Main overrides it.
+- mob.gd: take_damage(), knockback(direction, speed, duration) (tweens linear_velocity back to the mob's
+  normal velocity), died signal, hit_radius used by ALL attacks' hit tests.
+- main.gd: constants for score/coins/mob health; new_game(character = null) sets the character first.
+- hud.gd: health bar, coins, results, shop, reset button + dialog, and the selection screen
+  (_build_select_screen, _refresh_select, _make_card, _on_play_pressed). The shop shows the SELECTED
+  character's upgrades (hud calls SaveData.set_character before opening it).
+- save_data.gd (class SaveData): UPGRADES dictionary (9 upgrades, see DESIGN_NOTES); per-character levels;
+  get_level / bonus / get_cost / try_buy use the CURRENT character (set with set_character);
+  get_level_for / bonus_for work for any character (used by the selection cards);
+  available_upgrades(), upgrade_info(id) (applies the per-character wording overrides);
+  get/set_last_character(). Save file sections: [progress] coins + last_character, [upgrades_<id>] per character.
 
 ## Conventions and gotchas learned (please follow these)
 - Indentation is TABS. Mixed tabs/spaces breaks GDScript. After writing a .gd file, check with
   grep -cP '^\t' and grep -cP '^ +\S'. (The shell is plain sh: no process substitution.)
 - GDScript type inference: an untyped export (@export var x = 1.0) makes `var y := x * 2` fail
   with "Cannot infer the type". Declare exports with := or an explicit type.
-- You cannot run Godot in your sandbox, so code is untested. Say so, and ask the user to paste
-  any error message they get.
+- You cannot run Godot in your sandbox, so code is untested until the user runs it. Say so, and ask the
+  user to paste any error message they get. Common cause of "unknown class" errors or a missing Character
+  field: new scripts not registered yet, or a file from an earlier step not copied. Try Project > Reload
+  Current Project, and check every file from earlier steps is in the project.
 - Versions drift. The user edits files in other chats and uploads files with suffixes
   (player_1.gd, main_1.tscn, ...). Always read the latest uploads, diff against what you last
   produced, and base edits on THEIR version. Before blaming a setting, check their file actually
-  contains your change (this caused a real mix-up once).
-- Values saved in a .tscn (set in the Inspector) override script defaults. Their Player scene
-  currently sets slash_frames (3-frame animation from slashstart.png, slash.png, slashend.png),
-  slash_flip_y = true and debug_draw_attack = true.
+  contains your change (this caused a real mix-up once, and once a missing file from an earlier step caused a "no player" report).
+- Values saved in a .tscn/.tres (set in the Inspector) override script defaults.
 - Prefer building new UI/nodes in code over editing .tscn files by hand. If a .tscn must change,
-  keep the edit small and explain it.
-- Deliver complete updated files and present them, rather than snippets, unless the change is tiny.
-- Keep replies plain and concrete. The user likes short step-by-step explanations.
+  keep the edit small and explain it. (Character and attack scenes were written by hand: keep their format.)
+- The Attack.configure signature has FOUR arguments now. Any new attack type must match it, and call
+  super.configure(...) first.
+- Mobs are hit with distance + each mob's hit_radius (not their collision shape). New attacks should reuse that.
+- Deliver complete updated files, or all the files that changed, and say which are new and which replace old ones.
+- Keep replies plain and concrete. The user likes short step-by-step explanations, a "To test" list
+  after each step, and a question about the next step at the end.
 
 ## Latest versions to ask for
-The user should upload their current copy of every .gd and .tscn. Two files were last
-produced by the previous Claude and may not be in their project yet, so confirm:
-- player.gd (has slash_angle_offset and the attack-speed change)
-- save_data.gd (renames "Claw Damage" to "Slash Damage")
+Ask the user to upload their current copy of EVERY .gd, .tscn and .tres file plus both notes files
+(images are not needed). Files most likely to have been edited by the user: hud.gd (they added the reset
+button themselves earlier), the .tres files (balance), and the attack .tscn files (tuning).
 
-## NEW FEATURE: character selection (agreed plan, not started)
-Goal: several playable characters with different starting stats and different attacks.
+## Pause menu (new feature, requested after Step A; untested until the user runs it)
+- Escape pauses during a run (Resume / Exit to main menu). pause_menu.gd (class PauseMenu, CanvasLayer, process_mode ALWAYS,
+  built in code). Main creates it in _ready and sets pause_menu.run_active (true in new_game, false in game_over / exit_to_menu).
+  The "pause" input action (Escape) is registered in code if missing.
+- Exit calls Main.exit_to_menu(): unpauses, stops all timers, frees mobs, Player.stop_run() (new; _die() now calls it), converts
+  the score to coins if Main.EXIT_AWARDS_COINS (true; set false to discard the run), then HUD.show_title() (new; immediate, no "Ow").
+- Files changed: main.gd, player.gd, hud.gd. New: pause_menu.gd.
 
-Approach
-- Make characters DATA, not code. Each character is a small Resource (a .tres editable in the
-  Inspector): name, sprite frames, base stats (health, speed, damage, reach, cooldown) and which
-  attack it uses.
-- The attack is the hard part. It currently lives inside player.gd. Move attacks into their own
-  scripts with one shared interface (for example sweep, projectile, ground slam). The player just
-  says "perform my attack"; each character points at an attack plus its settings. The existing
-  slash graphics exports move onto the sweep attack.
+## Cleanup progress
+- Step A: DONE (comments only, no code changes). Stale history comments fixed in slash_attack.gd, player.gd,
+  dash_attack.gd (new header describing both uses), throwing_knife_attack.gd and mob.gd. The user will test and commit.
+  Naming decision: keep "slam" in dash_attack.gd for now (Alistar and Seven share the script, so one name per variable).
+  In Step C, Alistar's DashAttack keeps the "slam" names; Seven's new script uses "slash_dash" names (e.g. slash_dash_delay,
+  slash_dash_radius). Seven's android_dash_attack.tscn has saved values that will reset when exports are renamed, so list them
+  first (base_slam_radius 240, slam_delay 0.5, slam_color (1, 0.35, 0.35), path_delay 0.45, path_damage_fraction 0.5,
+  dash_time 0.1, attack_cooldown 3.0, base_dash_distance 420, windup_time 0, knockback_enabled false).
+  Note: SlashAttack already uses slash_texture / slash_frames / slash_distance, so keep Seven's dash names distinct ("slash_dash_*").
+- Steps B to E: NOT STARTED. The user is open to the order A, B, C, D (B first makes the C split smaller).
 
-Order of work (test and commit after each step)
-1. Move the current sweep into its own attack script with NO change in how it plays.
-2. Add the character resource and run the existing cat through it.
-3. Add a second character with different stats.
-4. Add a second attack type.
-5. Build the selection screen between the title screen and the start of a run.
-6. Save the last-picked character. Optionally make characters unlockable with coins.
+## Planned cleanup (Step A done, B to E not started)
+Purpose: make the code easier to read and extend. NO gameplay changes. I rated the code about 7/10: easy to
+extend (data-driven characters, one Attack interface, tuning in the Inspector) but two files are getting heavy.
+Caveat: this rating comes from the files I edited most (dash_attack.gd, hud.gd, player.gd, mob.gd,
+slash_attack.gd). I had not re-read projectile_attack.gd, projectile.gd, main.gd, save_data.gd or
+throwing_knife_attack.gd in full, so read them before judging them.
 
-Decisions still open (ask the user early, they change the save file layout)
-- Are shop upgrades shared by all characters (simplest; they stack on each character's base
-  stats) or tracked per character?
-- How many characters, and what should their attacks be?
-- Should characters be unlockable with coins, or all available from the start?
+Problems found
+1. dash_attack.gd does too much. It serves Alistar (wind-up, direction lock, knockback shockwave) AND Seven
+   (instant dash, delayed shockwave, path damage, custom art, movement lock). About 20 exports, several only
+   meaningful for one character: windup_time, windup_move_multiplier, base_knockback_speed, knockback_time
+   (Alistar); slam_delay, knockback_enabled, lock_until_slam, path_delay, path_width, path_damage_fraction,
+   path_texture/frames, slam_texture/frames, slam_art_scale, effect_time (Seven).
+2. hud.gd is a catch-all: health bar, coins label, result label, SHOP and RESET buttons, reset dialog, shop
+   screen (_build_shop, _refresh_shop, _refresh_shop_picker), character select screen (_build_select_screen,
+   _make_card, _refresh_select). Long, and the shop/select code repeats the same build-it-in-code pattern.
+3. Naming drift: the end of Seven's dash is "slam" (code: slam_delay, _slam(), slam_radius, slam_texture) but
+   the user calls it "the slash"; the dash is "bruiser" in file names (bruiser.tres, bruiser_dash_attack.tscn,
+   id "bruiser") but "Alistar" everywhere the user sees it; same for android/Seven and cat/Nico. NOTE: the
+   IDs (cat, android, bruiser, dragon) are save-file keys and must NOT change. The user already renamed all
+   "sweep" and "claw" to "slash" (done). "slam" and "shockwave" were not part of that request.
+4. Stale comments: the header of dash_attack.gd still opens with "Alistar's attack, in two phases" and has
+   grown several add-on paragraphs; slash_attack.gd's header says it was "moved out of player.gd" and "plays
+   exactly as before"; check character_data.gd and the attack headers for other history-style comments.
+5. Duplicated logic: each attack has its own copy of "distance to the mob <= reach + mob.hit_radius" (slash:
+   distance + angle; projectile explosion; dash slam; dash path strike via a segment; knife projectile).
+   player.gd's animation rules (_update_animation, _play_animation, plus the sprite setup in set_character and
+   the idle/lock lines in _process) are spread over a few places.
+6. Nothing has ever been run by me: everything is checked only by reading it. The user is the test suite.
 
-Things to watch when refactoring
-- apply_upgrades(), start() and the stat variables in player.gd, plus anything reading
-  attack_radius or attack_damage.
-- The "attack_range" upgrade scales reach, and "attack_speed" scales cooldown only.
-- hud.gd needs a character select screen; main.gd's new_game() should pass the chosen character.
-- Mob.hit_radius is used by the sweep hit test. Other attack types should reuse it.
-- Keep SaveData backwards compatible so the user's existing coins and upgrades are not wiped.
+Proposed steps (do ONE at a time; the user commits and tests after each; keep a "To test" list for each)
+Step A - Comments and naming only (lowest risk). Fix the stale headers; pick one word for the dash's landing
+   effect and use it consistently. Ask the user which they prefer: "slam" (current), "slash" (what they say),
+   or "shockwave". If renaming exports (slam_delay, slam_texture...), remember saved values in the attack
+   .tscn files do NOT carry over to a renamed export (this happened with sweep_time -> slash_time and the
+   user had to re-enter the values). List the values to re-enter, or avoid renaming exports.
+Step B - Shared mob hit helper. A small script (for example mob_hits.gd, class MobHits, static functions):
+   mobs_in_circle(center, radius), mobs_near_segment(from, to, half_width), and the cone test used by the
+   slash. Every function uses each mob's hit_radius, is_instance_valid and the "mobs" group, exactly as today.
+   Switch slash_attack.gd, projectile.gd, dash_attack.gd and knife_projectile.gd over one at a time.
+   Behavior must be identical: a mob counts as hit as soon as the attack touches its edge.
+Step C - Split the dash. Keep DashAttack (+ bruiser_dash_attack.tscn) for Alistar: wind-up, locked direction,
+   instant knockback shockwave. Move Seven's behavior into a new script (suggested name delayed_dash_attack.gd,
+   class DelayedDashAttack, extends Attack): instant dash, delayed landing, path damage, art, movement lock.
+   Seven's scene android_dash_attack.tscn then points at the new script. If the two share code (dash movement,
+   cooldown, invulnerability), put it in a small base class both extend, not copy-paste. Both keep every Attack
+   interface method (configure with 4 args, start_run, cancel, tick, try_attack, is_controlling_movement,
+   is_invulnerable, movement_speed_multiplier, is_busy, can_start_while). BEFORE swapping the script on Seven's
+   scene, write down every value set on its root node (windup_time 0, slam_delay, path_delay, path_width,
+   art, etc.): Godot drops properties the new script doesn't have, and changed names reset to defaults.
+   Do the file moves and script swaps in Godot's FileSystem dock so references update.
+Step D - Split hud.gd. Pull the shop into its own file (suggested shop_screen.gd, class ShopScreen) and the
+   character select into character_select_screen.gd, each building its own UI in code. hud.gd keeps: health
+   bar, coins, result text, title buttons, reset dialog, and the start_game(character) signal.
+   Behavior to preserve exactly: the select screen opens from START; its Upgrades button opens the shop; the
+   SHOP button on the title screen also opens it; the shop opens on the SELECTED character and its picker
+   buttons switch which character's upgrades are shown WITHOUT changing who is played; while the shop is open
+   SaveData.set_character follows the shop's character and is restored to the selected one on close; StartButton
+   is disabled while the shop is open; the select cards refresh when the shop closes; the shop is built last so
+   it draws above the select screen; PLAY saves the last character, hides the title buttons and emits
+   start_game(selected); clicking anywhere on a card selects it (card.gui_input; children use MOUSE_FILTER_IGNORE;
+   the refresh after a click is deferred because it rebuilds the clicked card).
+Step E (optional) - Tidy the animation rules in player.gd into one function that decides idle / walk / up from
+   state (moving, rooted by an attack), keeping: sideways movement plays "walk" and flips (art faces left, flip
+   when moving right); vertical-only movement plays "up" if the frames have it, otherwise "walk"; standing
+   still plays "idle" if present, otherwise the sprite freezes; while an attack roots the player the idle pose
+   shows if the character has one.
 
-## Suggested first message in the new chat
-Confirm which files you received and which versions, summarize back the current architecture in
-a few lines, ask the three open decisions above, then do step 1 only and have the user test it.
+Rules for the cleanup
+- No gameplay changes. If a step would change behavior, stop and ask the user first.
+- After each step, list which files changed, which are new, and which the user must rename or move in the
+  Godot FileSystem dock. Remind them that values saved in .tscn/.tres files override script defaults.
+- Never rename a character id. Do not edit .tscn/.tres files by hand unless the user uploads them; ask for
+  them if a step needs it (they were not in the zip: cat.tres, android.tres, bruiser.tres, dragon.tres, the
+  attack scenes and player.tscn).
+- Typed variables: `var x := $Node.property` fails to infer a type (caused a real parser error); write
+  `var x: Type = $Node.property`.
+- Update DESIGN_NOTES.txt and this file at the end of each step.
 
-## Before starting the new chat (for the user)
+## Open items / ideas for next time
+- Confirm the selection screen works (see Status above), then playtest and balance all four characters:
+  stats in the .tres files, attack numbers on the attack scenes, upgrade costs/levels in SaveData.UPGRADES.
+- Real art: bruiser, android, dragon sprites (replace cat_frames.tres in each .tres and set sprite_tint to white);
+  fireball and shockwave art (currently drawn in code in projectile.gd and dash_attack.gd).
+- Selection screen is four cards in one row; more characters would need scrolling or wrapping.
+- Possible later features: coin-unlockable characters (SaveData would need an "unlocked" list; keep old saves working),
+  a second upgrade line per attack, sound effects, more mob types.
+- Secondary attacks: playtest both (feel of right click while holding left click, knife rate, Seven's dash +
+  delayed shockwave). Possible later: a separate upgrade line for secondaries, a secondary for Alistar and the
+  dragon, a cooldown indicator in the HUD.
+- Keep SaveData backwards compatible so players' coins and upgrades are never wiped (the old single-section
+  "upgrades" layout is migrated to the cat in _ensure_loaded; keep that code).
+- Never change a character's id once players have progress: it is the key in the save file.
+
+## Suggested first message in the next chat
+Confirm which files you received and which versions, summarize back the current architecture in a few
+lines, ask whether the selection screen and the four characters were playtested and what felt off,
+then work on whatever they pick (balance, art, new character, new feature).
+
+## Before starting the next chat (for the user)
 - Commit the current working version to git as a safe point.
-- Upload every .gd and .tscn file, DESIGN_NOTES.txt and this file. Image files are not needed.
+- Upload every .gd, .tscn and .tres file, DESIGN_NOTES.txt and this file.

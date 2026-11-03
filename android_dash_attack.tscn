@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3 uid="uid://dlblpq7lug6uv"]
+
+[ext_resource type="Script" uid="uid://bg8p7i4lenmw8" path="res://dash_attack.gd" id="1_dash"]
+
+[node name="DashAttack" type="Node2D"]
+script = ExtResource("1_dash")
+attack_cooldown = 3.0
+base_dash_distance = 420.0
+windup_time = 0.0
+windup_move_multiplier = 0.505
+dash_time = 0.1
+base_slam_radius = 240.0
+slam_delay = 0.5
+knockback_enabled = false
+slam_color = Color(1, 0.35, 0.35, 1)
+path_delay = 0.45
+path_damage_fraction = 0.5

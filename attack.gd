@@ -48,9 +48,28 @@ func is_controlling_movement() -> bool:
 	return false
 
 
+# Multiplies the player's walking speed while this attack is active (1.0 = no change).
+# An attack returns less than 1.0 to slow the player down, e.g. during a wind-up.
+func movement_speed_multiplier() -> float:
+	return 1.0
+
+
 # Return true while the player should take no damage (for example during a dash).
 func is_invulnerable() -> bool:
 	return false
+
+
+# Return true while the attack is mid-swing / mid-cast (a slash in progress, a dash charging).
+# Other attacks can ask this, e.g. the throwing knife won't fire during a slash.
+func is_busy() -> bool:
+	return false
+
+
+# Called by the player before it triggers this attack as the SECONDARY one. Return false to
+# refuse while `primary` (the left-click attack) is doing something. Default: always allowed,
+# so a secondary can be used on top of the primary.
+func can_start_while(_primary: Attack) -> bool:
+	return true
 
 
 # The player asks for an attack aimed at a point in the world.

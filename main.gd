@@ -5,21 +5,27 @@ const SCORE_PER_COIN := 5           # Score needed per coin when a run ends
 const KILL_SCORE := 3               # Bonus score for each mob killed
 const BASE_MOB_HEALTH := 2
 const SCORE_PER_EXTRA_MOB_HP := 30  # Mobs gain +1 HP for every N points of score
+const EXIT_AWARDS_COINS := true     # Leaving a run from the pause menu still converts its score to coins (false = the run is just thrown away)
 
 @export var mob_scene: PackedScene
 var score := 0
 var kills := 0
 var game_running = false
+var _pause_menu: PauseMenu
 
 
 func _ready():
 	$MobTimer.stop()
 	$ScoreTimer.stop()
 	$Player.health_changed.connect($HUD.update_health)
+	_pause_menu = PauseMenu.new()  # Escape pauses during a run (built in code, see pause_menu.gd)
+	add_child(_pause_menu)
+	_pause_menu.exit_requested.connect(exit_to_menu)
 
 
 func game_over():
 	game_running = false
+	_pause_menu.run_active = false
 	$ScoreTimer.stop()
 	$MobTimer.stop()
 	get_tree().call_group("mobs", "queue_free")
@@ -30,8 +36,30 @@ func game_over():
 	$HUD.show_game_over(score, earned, SaveData.get_coins())
 
 
-func new_game():
+# Called from the pause menu's Exit button: abandons the run and returns to the title screen.
+func exit_to_menu() -> void:
+	get_tree().paused = false
+	game_running = false
+	_pause_menu.run_active = false
+	$StartTimer.stop()  # In case Exit is pressed during "Get Ready!"
+	$ScoreTimer.stop()
+	$MobTimer.stop()
+	get_tree().call_group("mobs", "queue_free")
+	$Player.stop_run()
+
+	var earned := 0
+	if EXIT_AWARDS_COINS:
+		earned = floori(score / float(SCORE_PER_COIN))
+		SaveData.add_coins(earned)
+	$HUD.show_title(score, earned, SaveData.get_coins())
+
+
+func new_game(character: CharacterData = null):
+	# The HUD's character screen passes the chosen character
+	if character != null:
+		$Player.set_character(character)
 	game_running = true
+	_pause_menu.run_active = true
 	score = 0
 	kills = 0
 	$MobTimer.stop()

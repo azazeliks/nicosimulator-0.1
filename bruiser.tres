@@ -1,18 +1,20 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=4 format=3 uid="uid://ccx0rq3lqeer0"]
 
-[ext_resource type="Script" path="res://character_data.gd" id="1_data"]
+[ext_resource type="Script" uid="uid://b7deb4dtut0w8" path="res://character_data.gd" id="1_data"]
 [ext_resource type="PackedScene" path="res://bruiser_dash_attack.tscn" id="2_attack"]
-[ext_resource type="SpriteFrames" path="res://cat_frames.tres" id="3_frames"]
+[ext_resource type="SpriteFrames" uid="uid://nxt0qe4p2idb" path="res://cat_frames.tres" id="3_frames"]
 
 [resource]
 script = ExtResource("1_data")
 id = "bruiser"
-display_name = "Bruiser"
+display_name = "Alistar"
+description = "Tough and heavy. Dashes toward your mouse, safe from damage on the way, then slams down a shockwave that hurts and knocks back everything around it."
 sprite_frames = ExtResource("3_frames")
 sprite_tint = Color(0.55, 0.55, 0.6, 1)
 speed = 340
 base_max_health = 5
 base_attack_damage = 2
+regen_interval = 0.0
 attack_scene = ExtResource("2_attack")
 upgrade_ids = PackedStringArray("max_health", "speed", "damage", "attack_range", "attack_speed", "knockback", "dash_distance")
 upgrade_overrides = {

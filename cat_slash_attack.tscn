@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://sweep_attack.gd" id="1_sweep"]
+[ext_resource type="Script" uid="uid://cs3j87fnpefhv" path="res://slash_attack.gd" id="1_sweep"]
 [ext_resource type="Texture2D" uid="uid://gsylht6rbpol" path="res://slashstart.png" id="2_start"]
 [ext_resource type="Texture2D" uid="uid://oeefebnoclv3" path="res://slash.png" id="3_slash"]
 [ext_resource type="Texture2D" uid="uid://dn6ui0aijq6ke" path="res://slashend.png" id="4_end"]

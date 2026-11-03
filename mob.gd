@@ -4,18 +4,42 @@ signal died
 
 @export var max_health := 2
 @export var contact_damage := 1  # Damage dealt to the player on touch
-@export var hit_radius := 45.0   # Roughly the mob's body radius; added to the player's sweep reach
+@export var hit_radius := 45.0   # Roughly the mob's body radius; every attack adds it to its own reach when testing for hits
+@export var turn_rate := 1.0     # How fast (radians per second) the mob curves toward the player. 0 = straight line, bigger = chases harder
 
 var health := 0
 var _dead := false
 var _knock_tween: Tween
 var _base_velocity := Vector2.ZERO  # The mob's normal drifting velocity, restored after a knockback
+var _player: Node2D
 
 
 func _ready():
 	health = max_health
 	var mob_types = $AnimatedSprite2D.sprite_frames.get_animation_names()
 	$AnimatedSprite2D.play(mob_types[randi() % mob_types.size()])
+
+
+# Curves the mob's path toward the player without changing its speed. It only steers when it
+# can: not while dying, not during a knockback (the push wins), and not while the player is
+# hidden (before a run, or after game over).
+func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
+	if _dead or turn_rate <= 0.0:
+		return
+	if _knock_tween != null and _knock_tween.is_valid():
+		return
+	if _player == null or not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group("player") as Node2D
+	if _player == null or not _player.visible:
+		return
+	var velocity := state.linear_velocity
+	var to_player := _player.global_position - state.transform.origin
+	if velocity.length_squared() < 1.0 or to_player.length_squared() < 1.0:
+		return
+	var max_step := turn_rate * state.step
+	var step := clampf(angle_difference(velocity.angle(), to_player.angle()), -max_step, max_step)
+	state.linear_velocity = velocity.rotated(step)
+	state.transform = state.transform.rotated_local(step)  # The sprite turns with the movement
 
 
 func take_damage(amount: int = 1) -> void:

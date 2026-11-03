@@ -1,66 +1,35 @@
-[gd_scene load_steps=7 format=3 uid="uid://cfho1snx16w5t"]
+[gd_scene load_steps=9 format=3 uid="uid://cfho1snx16w5t"]
 
 [ext_resource type="Script" uid="uid://mb8f10h52q7a" path="res://player.gd" id="1_i3pqv"]
-[ext_resource type="Texture2D" uid="uid://b48emedwjkfdw" path="res://dumbcatface1.png" id="2_hqtel"]
-[ext_resource type="Resource" path="res://dragon.tres" id="2_sweqy"]
-[ext_resource type="Texture2D" uid="uid://b65ujt0nmnlha" path="res://dumbcatface2.png" id="3_sweqy"]
+[ext_resource type="Resource" uid="uid://dgtlgr1kucjyi" path="res://dragon.tres" id="2_sweqy"]
+[ext_resource type="Texture2D" uid="uid://csnb456vjmexl" path="res://seven_walk1.png" id="5_1jxqw"]
+[ext_resource type="Texture2D" uid="uid://b6ictduo1u40c" path="res://seven1.png" id="5_2hs0m"]
+[ext_resource type="Texture2D" uid="uid://cgnvbf7mqst2t" path="res://seven2.png" id="6_1jxqw"]
+[ext_resource type="Texture2D" uid="uid://bi5svskfxxrhy" path="res://seven_walk2.png" id="6_dw050"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_1jxqw"]
 animations = [{
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2_hqtel")
+"texture": ExtResource("5_2hs0m")
 }, {
 "duration": 1.0,
-"texture": ExtResource("3_sweqy")
+"texture": ExtResource("6_1jxqw")
 }],
 "loop": true,
-"name": &"down",
-"speed": 5.0
+"name": &"idle",
+"speed": 4.0
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": ExtResource("2_hqtel")
+"texture": ExtResource("5_1jxqw")
 }, {
 "duration": 1.0,
-"texture": ExtResource("3_sweqy")
-}],
-"loop": true,
-"name": &"left",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("2_hqtel")
-}, {
-"duration": 1.0,
-"texture": ExtResource("3_sweqy")
-}],
-"loop": true,
-"name": &"right",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("2_hqtel")
-}, {
-"duration": 1.0,
-"texture": ExtResource("3_sweqy")
-}],
-"loop": true,
-"name": &"up",
-"speed": 5.0
-}, {
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("2_hqtel")
-}, {
-"duration": 1.0,
-"texture": ExtResource("3_sweqy")
+"texture": ExtResource("6_dw050")
 }],
 "loop": true,
 "name": &"walk",
-"speed": 5.0
+"speed": 4.0
 }]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_2hs0m"]
@@ -73,7 +42,7 @@ character = ExtResource("2_sweqy")
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 scale = Vector2(0.2, 0.2)
 sprite_frames = SubResource("SpriteFrames_1jxqw")
-animation = &"down"
+animation = &"walk"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 position = Vector2(2, 14)

@@ -4,8 +4,8 @@ extends Area2D
 signal hit  # Emitted when health reaches 0 (Main listens to this to end the run)
 signal health_changed(current: int, maximum: int)
 
-# Which character this player is. For now it is set in the Inspector (player.tscn);
-# later the selection screen will call set_character() instead.
+# Which character this player is. This is only the default; at runtime Main calls
+# set_character() with the character picked on the selection screen.
 @export var character: CharacterData
 @export var invulnerability_time := 1.0  # Seconds of protection after being hit
 
@@ -30,9 +30,12 @@ var _regen_left := 0.0
 
 # The attack node of the current character (created from character.attack_scene)
 var attack: Attack
+# The optional right-click attack (created from character.secondary_attack_scene)
+var secondary_attack: Attack
 
 
 func _ready():
+	add_to_group("player")  # Mobs look the player up by this group to chase it
 	screen_size = get_viewport_rect().size
 	_register_inputs()
 	if character != null:
@@ -69,6 +72,18 @@ func set_character(data: CharacterData) -> void:
 		else:
 			add_child(attack)
 
+	# Same for the secondary (right-click) attack, which may not exist
+	if secondary_attack != null:
+		remove_child(secondary_attack)
+		secondary_attack.queue_free()
+		secondary_attack = null
+	if data.secondary_attack_scene != null:
+		secondary_attack = data.secondary_attack_scene.instantiate() as Attack
+		if secondary_attack == null:
+			push_error("Character '%s': secondary_attack_scene's root script must extend Attack." % data.id)
+		else:
+			add_child(secondary_attack)
+
 
 # Creates WASD movement and attack actions in code, unless you've already made
 # actions with these names in Project Settings > Input Map.
@@ -82,6 +97,12 @@ func _register_inputs() -> void:
 		var click := InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_LEFT
 		InputMap.action_add_event("attack", click)
+	# Secondary attack: right mouse button
+	if not InputMap.has_action("attack_secondary"):
+		InputMap.add_action("attack_secondary")
+		var right_click := InputEventMouseButton.new()
+		right_click.button_index = MOUSE_BUTTON_RIGHT
+		InputMap.action_add_event("attack_secondary", right_click)
 
 
 # Returns true if the action was newly created.
@@ -98,6 +119,8 @@ func _ensure_action(action: String, keycode: Key) -> bool:
 func _process(delta):
 	if attack != null:
 		attack.tick(delta)  # Lets the attack advance its swing and cooldown
+	if secondary_attack != null:
+		secondary_attack.tick(delta)
 
 	if not alive:
 		return
@@ -106,8 +129,15 @@ func _process(delta):
 	_update_regen(delta)
 
 	# Some attacks (the bruiser's dash) move the player themselves, so skip normal movement
-	if attack != null and attack.is_controlling_movement():
+	# and attack input
+	if _attack_controls_movement():
+		# Rooted by an attack (dash, or waiting for its shockwave): show the idle pose if there is one
+		var frames: SpriteFrames = $AnimatedSprite2D.sprite_frames
+		if frames != null and frames.has_animation(&"idle"):
+			_play_animation(&"idle")
 		return
+
+	_handle_attack_input()
 
 	var velocity = Vector2.ZERO
 	if Input.is_action_pressed("move_right"): velocity.x += 1
@@ -116,26 +146,61 @@ func _process(delta):
 	if Input.is_action_pressed("move_up"):    velocity.y -= 1
 
 	if velocity.length() > 0:
-		velocity = velocity.normalized() * move_speed
-		$AnimatedSprite2D.play()
-	else:
-		$AnimatedSprite2D.stop()
-
+		var slow := 1.0  # e.g. the bruiser's wind-up; both attacks can slow the player
+		if attack != null:
+			slow *= attack.movement_speed_multiplier()
+		if secondary_attack != null:
+			slow *= secondary_attack.movement_speed_multiplier()
+		velocity = velocity.normalized() * move_speed * slow
 	position += velocity * delta
 	position = position.clamp(Vector2.ZERO, screen_size)
 
-	if velocity.x != 0:
-		$AnimatedSprite2D.animation = "walk"
-		$AnimatedSprite2D.flip_v = false
-		$AnimatedSprite2D.flip_h = velocity.x > 0  # Art faces left by default, so flip when moving right
-	elif velocity.y != 0:
-		$AnimatedSprite2D.animation = "up"
-		$AnimatedSprite2D.flip_v = false
+	_update_animation(velocity)
 
-	# Held, not just pressed: the attack ignores the request while on cooldown, so
-	# holding the button swings again as soon as the cooldown ends.
+
+# Picks the sprite animation. Moving sideways plays "walk" (flipped to face the way you go),
+# moving only up/down plays "up" (or "walk" if the character has no "up"), and standing
+# still plays "idle". Characters without an "idle" animation just freeze on their current
+# frame.
+func _update_animation(velocity: Vector2) -> void:
+	var sprite: AnimatedSprite2D = $AnimatedSprite2D
+	var frames := sprite.sprite_frames
+	if frames == null:
+		return
+	if velocity.length() > 0:
+		sprite.flip_v = false
+		if velocity.x != 0:
+			_play_animation(&"walk")
+			sprite.flip_h = velocity.x > 0  # Art faces left by default, so flip when moving right
+		elif frames.has_animation(&"up"):
+			_play_animation(&"up")
+		else:
+			_play_animation(&"walk")
+	elif frames.has_animation(&"idle"):
+		_play_animation(&"idle")  # Keeps the last facing direction
+	else:
+		sprite.stop()
+
+
+# Plays an animation without restarting it every frame
+func _play_animation(anim: StringName) -> void:
+	var sprite: AnimatedSprite2D = $AnimatedSprite2D
+	if sprite.animation != anim or not sprite.is_playing():
+		sprite.play(anim)
+
+
+# Held, not just pressed: an attack ignores the request while on cooldown, so holding the
+# button fires again as soon as the cooldown ends.
+# The secondary is checked FIRST and on its own, so right click fires whether or not left
+# click is being held or the primary is mid-swing. (A secondary can still refuse by
+# overriding can_start_while, e.g. Nico's knife won't throw during a slash.)
+func _handle_attack_input() -> void:
+	var mouse := get_global_mouse_position()
+	if secondary_attack != null and Input.is_action_pressed("attack_secondary"):
+		if secondary_attack.can_start_while(attack):
+			secondary_attack.try_attack(mouse)
 	if attack != null and Input.is_action_pressed("attack"):
-		attack.try_attack(get_global_mouse_position())
+		attack.try_attack(mouse)
 
 
 func _physics_process(_delta):
@@ -160,6 +225,8 @@ func start(pos):
 	_invuln_left = 0.0
 	_regen_left = regen_interval
 	attack.start_run()
+	if secondary_attack != null:
+		secondary_attack.start_run()
 	$AnimatedSprite2D.modulate.a = 1.0
 	show()
 	$CollisionShape2D.disabled = false
@@ -183,12 +250,20 @@ func apply_upgrades() -> void:
 		1.0 + SaveData.bonus("attack_speed"),
 		bonuses
 	)
+	# The secondary gets the same numbers; it decides which of them it uses
+	if secondary_attack != null:
+		secondary_attack.configure(
+			base_attack_damage + int(SaveData.bonus("damage")),
+			1.0 + SaveData.bonus("attack_range"),
+			1.0 + SaveData.bonus("attack_speed"),
+			bonuses
+		)
 
 
 func take_damage(amount: int = 1) -> void:
 	if not alive or _invuln_left > 0.0:
 		return
-	if attack != null and attack.is_invulnerable():
+	if (attack != null and attack.is_invulnerable()) or (secondary_attack != null and secondary_attack.is_invulnerable()):
 		return  # e.g. mid-dash
 	health = maxi(health - amount, 0)
 	health_changed.emit(health, max_health)
@@ -198,13 +273,27 @@ func take_damage(amount: int = 1) -> void:
 		_invuln_left = invulnerability_time
 
 
+# True while either attack is moving the player itself (a dash)
+func _attack_controls_movement() -> bool:
+	return (attack != null and attack.is_controlling_movement()) \
+		or (secondary_attack != null and secondary_attack.is_controlling_movement())
+
+
 func _die() -> void:
+	stop_run()
+	hit.emit()
+
+
+# Ends the run without the "hit" signal: stops both attacks, hides the player and turns off
+# its collision. Used when the player dies and when the run is abandoned from the pause menu.
+func stop_run() -> void:
 	alive = false
 	if attack != null:
 		attack.cancel()
+	if secondary_attack != null:
+		secondary_attack.cancel()
 	hide()
 	$CollisionShape2D.set_deferred("disabled", true)
-	hit.emit()
 
 
 # Heals 1 HP every regen_interval seconds while hurt. The wait starts over once at full health.

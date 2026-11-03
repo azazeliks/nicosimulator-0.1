@@ -1,0 +1,32 @@
+[gd_scene load_steps=6 format=3 uid="uid://csdujtruugifh"]
+
+[ext_resource type="Script" uid="uid://cs3j87fnpefhv" path="res://slash_attack.gd" id="1_yt7ud"]
+[ext_resource type="Texture2D" uid="uid://gsylht6rbpol" path="res://slashstart.png" id="2_nmqas"]
+[ext_resource type="Texture2D" uid="uid://oeefebnoclv3" path="res://slash.png" id="3_jgyx6"]
+[ext_resource type="Texture2D" uid="uid://dn6ui0aijq6ke" path="res://slashend.png" id="4_2laxq"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_androidslash"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_nmqas")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_jgyx6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_2laxq")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[node name="SweepAttack" type="Node2D"]
+script = ExtResource("1_yt7ud")
+base_attack_radius = 340.0
+attack_arc_degrees = 120.0
+attack_cooldown = 0.8
+slash_frames = SubResource("SpriteFrames_androidslash")
+slash_flip_y = true
+slash_angle_offset = 20.0

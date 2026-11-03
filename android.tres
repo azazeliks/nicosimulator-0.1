@@ -1,18 +1,22 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=5 format=3 uid="uid://doy8n3vlchjlv"]
 
-[ext_resource type="Script" path="res://character_data.gd" id="1_data"]
-[ext_resource type="PackedScene" path="res://android_sweep_attack.tscn" id="2_attack"]
-[ext_resource type="SpriteFrames" path="res://cat_frames.tres" id="3_frames"]
+[ext_resource type="Script" uid="uid://b7deb4dtut0w8" path="res://character_data.gd" id="1_data"]
+[ext_resource type="PackedScene" uid="uid://csdujtruugifh" path="res://android_slash_attack.tscn" id="2_attack"]
+[ext_resource type="SpriteFrames" uid="uid://cp5dws03lmvg6" path="res://android_frames.tres" id="4_5hfcw"]
+[ext_resource type="PackedScene" uid="uid://dlblpq7lug6uv" path="res://android_dash_attack.tscn" id="4_secondary"]
 
 [resource]
 script = ExtResource("1_data")
 id = "android"
-display_name = "Android"
-sprite_frames = ExtResource("3_frames")
-sprite_tint = Color(1, 0.35, 0.35, 1)
+display_name = "Seven"
+description = "Slow but powerful. Its huge, heavy slash hits for double damage, and it slowly regenerates lost HP over time. Right-click dashes a long way, then a big blast lands where you stopped."
+sprite_frames = ExtResource("4_5hfcw")
+sprite_tint = Color(1, 1, 1, 1)
 speed = 360
 base_max_health = 3
 base_attack_damage = 2
 regen_interval = 8.0
 attack_scene = ExtResource("2_attack")
+secondary_attack_scene = ExtResource("4_secondary")
 upgrade_ids = PackedStringArray("max_health", "speed", "damage", "attack_range", "regen")
+upgrade_overrides = {}

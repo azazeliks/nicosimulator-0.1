@@ -45,7 +45,7 @@ func _process(delta: float) -> void:
 		_explode()
 		return
 
-	# Explode as soon as we touch a mob (same size idea as the sweep: distance + hit_radius)
+	# Explode as soon as we touch a mob (same size idea as the slash: distance + hit_radius)
 	for mob in get_tree().get_nodes_in_group("mobs"):
 		if not is_instance_valid(mob):
 			continue

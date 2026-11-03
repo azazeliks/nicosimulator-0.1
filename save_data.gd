@@ -30,7 +30,7 @@ const UPGRADES := {
 		"base_cost": 20, "growth": 1.6, "max_level": 5, "per_level": 1.0,
 	},
 	"attack_range": {
-		"name": "Sweep Range",
+		"name": "Slash Range",
 		"desc": "+15% attack range per level",
 		"base_cost": 12, "growth": 1.6, "max_level": 5, "per_level": 0.15,
 	},
@@ -71,6 +71,7 @@ static var _levels: Dictionary = {}  # character id -> { upgrade id -> level }
 static var _current: String = "cat"  # Whose upgrades the functions below use
 static var _available: PackedStringArray = PackedStringArray()  # Upgrades the current character can buy (empty = all)
 static var _overrides: Dictionary = {}  # Current character's shop wording changes (see CharacterData.upgrade_overrides)
+static var _last_character: String = ""  # Character picked on the selection screen last time
 static var _loaded: bool = false
 
 
@@ -82,6 +83,7 @@ static func _ensure_loaded() -> void:
 	if cfg.load(SAVE_PATH) != OK:
 		return  # No save yet: start fresh
 	_coins = maxi(int(cfg.get_value("progress", "coins", 0)), 0)
+	_last_character = str(cfg.get_value("progress", "last_character", ""))
 	# One "upgrades_<character id>" section per character
 	for section in cfg.get_sections():
 		if section.begins_with("upgrades_"):
@@ -111,6 +113,7 @@ static func save_data() -> void:
 	_levels_for(_current)  # Make sure the current character gets a section
 	var cfg := ConfigFile.new()
 	cfg.set_value("progress", "coins", _coins)
+	cfg.set_value("progress", "last_character", _last_character)
 	for character_id in _levels:
 		var levels: Dictionary = _levels[character_id]
 		for id in UPGRADES:
@@ -128,6 +131,18 @@ static func set_character(character_id: String, upgrade_ids: PackedStringArray =
 
 static func get_character() -> String:
 	return _current
+
+
+# The character picked on the selection screen last time ("" if none yet). Saved to disk.
+static func get_last_character() -> String:
+	_ensure_loaded()
+	return _last_character
+
+
+static func set_last_character(character_id: String) -> void:
+	_ensure_loaded()
+	_last_character = character_id
+	save_data()
 
 
 # Upgrade ids the current character can buy, in shop order.
@@ -163,8 +178,13 @@ static func add_coins(amount: int) -> void:
 
 
 static func get_level(id: String) -> int:
+	return get_level_for(_current, id)
+
+
+# The level of an upgrade for any character (the selection screen uses this to show stats)
+static func get_level_for(character_id: String, id: String) -> int:
 	_ensure_loaded()
-	return int(_levels_for(_current).get(id, 0))
+	return int(_levels_for(character_id).get(id, 0))
 
 
 static func is_maxed(id: String) -> bool:
@@ -178,7 +198,12 @@ static func get_cost(id: String) -> int:
 
 # Total bonus from an upgrade at its current level (level * per_level).
 static func bonus(id: String) -> float:
-	return get_level(id) * float(UPGRADES[id]["per_level"])
+	return bonus_for(_current, id)
+
+
+# Same, for any character
+static func bonus_for(character_id: String, id: String) -> float:
+	return get_level_for(character_id, id) * float(UPGRADES[id]["per_level"])
 
 
 # Spends coins and raises the current character's level. Returns true if the purchase went through.

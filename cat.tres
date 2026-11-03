@@ -1,13 +1,15 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=4 format=3 uid="uid://crv6eq5313dl5"]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=5 format=3 uid="uid://bqrj7mslu7onw"]
 
 [ext_resource type="Script" uid="uid://b7deb4dtut0w8" path="res://character_data.gd" id="1_data"]
-[ext_resource type="PackedScene" path="res://cat_sweep_attack.tscn" id="2_attack"]
-[ext_resource type="SpriteFrames" path="res://cat_frames.tres" id="3_frames"]
+[ext_resource type="PackedScene" path="res://cat_slash_attack.tscn" id="2_attack"]
+[ext_resource type="PackedScene" path="res://cat_knife_attack.tscn" id="4_secondary"]
+[ext_resource type="SpriteFrames" uid="uid://nxt0qe4p2idb" path="res://cat_frames.tres" id="3_frames"]
 
 [resource]
 script = ExtResource("1_data")
 id = "cat"
-display_name = "Cat"
+display_name = "Nico"
+description = "A balanced all-rounder. Sweeps a claw slash across a wide arc toward your mouse, swinging left and right in turn. Right-click throws a fast, light knife."
 sprite_frames = ExtResource("3_frames")
 sprite_tint = Color(1, 1, 1, 1)
 speed = 400
@@ -15,4 +17,6 @@ base_max_health = 3
 base_attack_damage = 1
 regen_interval = 0.0
 attack_scene = ExtResource("2_attack")
+secondary_attack_scene = ExtResource("4_secondary")
 upgrade_ids = PackedStringArray("max_health", "speed", "damage", "attack_range", "attack_speed")
+upgrade_overrides = {}
