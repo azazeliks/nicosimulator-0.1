@@ -28,6 +28,7 @@ signal health_changed(current: int, maximum: int)
 @export var slash_scale := 1.0           # Extra size multiplier
 @export var slash_distance := 60.0       # How far from the player the slash orbits. The hit area still covers the gap
 @export var slash_flip_y := false        # Tick if the art's leading edge is on the other side (swings look backwards)
+@export var slash_angle_offset := 0.0    # Visual-only tilt in degrees, mirrored between the two swings. Positive leans the art forward (the way it is swinging), negative leans it back. The hit area never moves
 @export var debug_draw_attack := false   # Shows the real hit area in red, for lining up art
 
 const FADE_TIME := 0.12  # How long the placeholder trail lingers after a sweep
@@ -41,8 +42,8 @@ var max_health := 3
 var move_speed := 400.0
 var attack_damage := 1
 var attack_radius := 240.0
-var current_cooldown := 0.6    # attack_cooldown divided by the attack speed multiplier
-var current_sweep_time := 0.2  # sweep_time divided by the attack speed multiplier
+var current_cooldown := 0.6    # attack_cooldown divided by the attack speed multiplier (never less than the swing time)
+var current_sweep_time := 0.2  # How long a swing takes (same as sweep_time; attack speed doesn't change it)
 
 var _invuln_left := 0.0
 var _cooldown_left := 0.0
@@ -167,11 +168,12 @@ func apply_upgrades() -> void:
 	attack_damage = base_attack_damage + int(SaveData.bonus("damage"))
 	attack_radius = base_attack_radius * (1.0 + SaveData.bonus("attack_range"))
 	move_speed = speed + SaveData.bonus("speed")
-	# Attack speed: the bonus is a fraction (0.15 = 15% faster). It shortens both the
-	# swing itself (which also speeds up the slash animation) and the cooldown.
+	# Attack speed: the bonus is a fraction (0.15 = 15% faster). It only shortens the delay
+	# between attacks. The swing itself (and the slash animation) always takes sweep_time.
 	var attack_speed_mult := 1.0 + SaveData.bonus("attack_speed")
-	current_cooldown = attack_cooldown / attack_speed_mult
-	current_sweep_time = sweep_time / attack_speed_mult
+	current_sweep_time = sweep_time
+	# The delay never drops below the swing time, so one swing finishes before the next starts
+	current_cooldown = maxf(attack_cooldown / attack_speed_mult, current_sweep_time)
 
 
 func take_damage(amount: int = 1) -> void:
@@ -349,13 +351,18 @@ func _start_slash_visual() -> void:
 	# The art fills the space from the orbit distance out to the attack range
 	var visible_length := maxf(attack_radius - slash_distance, 1.0)
 	var s: float = (visible_length / maxf(slash_art_length, 1.0)) * slash_scale
-	_slash_sprite.offset = -slash_pivot  # Puts the pivot pixel at the sprite's origin
-	_slash_sprite.rotation = deg_to_rad(-slash_art_angle)  # Turns the art so its middle points along +x
-	_slash_sprite.scale = Vector2(s, s)
-
 	# The second swing is a mirror image of the first (slash_flip_y swaps which one)
 	var mirror := (_sweep_dir < 0) != slash_flip_y
 	_slash_mirror.scale = Vector2(1.0, -1.0 if mirror else 1.0)
+
+	_slash_sprite.offset = -slash_pivot  # Puts the pivot pixel at the sprite's origin
+	# Turns the art so its middle points along +x, plus the visual-only tilt. The tilt follows the
+	# swing: on screen it is +offset (clockwise) for a clockwise swing and -offset for a counterclockwise
+	# one, so it leans the same way relative to the swing both times. The mirror node flips rotation
+	# direction on mirrored swings, which the last factor cancels out.
+	var tilt := deg_to_rad(slash_angle_offset) * float(_sweep_dir) * (-1.0 if mirror else 1.0)
+	_slash_sprite.rotation = deg_to_rad(-slash_art_angle) + tilt
+	_slash_sprite.scale = Vector2(s, s)
 	# Put the art's pivot on a circle around the player, directly along the blade's line.
 	# (The pivot node is turned by -dir * lead, so the blade sits at +dir * lead in its frame.)
 	var lead := float(_sweep_dir) * deg_to_rad(slash_lead_degrees)

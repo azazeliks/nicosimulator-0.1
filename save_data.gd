@@ -18,7 +18,7 @@ const UPGRADES := {
 		"base_cost": 15, "growth": 1.6, "max_level": 5, "per_level": 1.0,
 	},
 	"damage": {
-		"name": "Claw Damage",
+		"name": "Slash Damage",
 		"desc": "+1 attack damage per level",
 		"base_cost": 20, "growth": 1.6, "max_level": 5, "per_level": 1.0,
 	},

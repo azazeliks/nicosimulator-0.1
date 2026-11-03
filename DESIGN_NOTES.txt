@@ -4,21 +4,25 @@
 - Move with WASD, dodge mobs, score goes up each second
 - Player has health (3 HP base). Touching a mob costs 1 HP, then 1s of invulnerability (sprite blinks). Run ends at 0 HP.
 - Press SPACE or left-click to attack: a sweep through a cone aimed at the mouse (0.6s cooldown, swing takes 0.2s). Mobs are hit as the blade passes over them, once each per swing.
+- HOLD the attack button (left click or Space) to keep attacking: it swings again as soon as the cooldown ends. Each swing aims at the mouse's position when it starts.
 - The sweep alternates direction every attack: left to right, then right to left. The first swing of each run is left to right.
 - Mobs have health (2 HP base, +1 per 30 score), flash red when hit, show a small bar once damaged, and fade out when killed.
 - Each kill gives +3 score. When a run ends, score converts to coins (5 score = 1 coin), saved permanently.
-- Between runs, the SHOP button opens an upgrade screen: Max Health, Claw Damage, Sweep Range, Move Speed (5 levels each).
+- Between runs, the SHOP button opens an upgrade screen: Max Health, Claw Damage, Sweep Range, Attack Speed, Move Speed (5 levels each).
+- Attack Speed: +15% per level (1.75x at max). It divides both the cooldown and the swing time, so the slash animation plays faster too (0.6s -> ~0.34s cooldown, 0.2s -> ~0.11s swing at max).
+- Between runs, the RESET button (under SHOP) erases all coins and upgrade levels after a confirmation dialog.
+- The player sprite is flipped horizontally compared to the original: it flips when moving right (not left).
 
 ## Scene structure
 - Main: Player, HUD, MobPath/MobSpawnLocation, MobTimer, ScoreTimer, StartTimer, StartPosition
-- (Health bar, coins label, results text, shop and the slash nodes are all built in code, so no scene changes were needed.)
+- (Health bar, coins label, results text, shop, reset button + dialog and the slash nodes are all built in code, so no scene changes were needed.)
 
 ## Scripts
-- save_data.gd: class SaveData. Coins + upgrade levels, saved to user://save.cfg. Upgrade definitions live in its UPGRADES constant.
-- player.gd: health, invulnerability, sweep attack, slash graphics, applies upgrades at the start of each run
+- save_data.gd: class SaveData. Coins + upgrade levels, saved to user://save.cfg. Upgrade definitions live in its UPGRADES constant. reset() wipes all progress.
+- player.gd: health, invulnerability, sweep attack, slash graphics, applies upgrades at the start of each run (including attack speed -> current_cooldown / current_sweep_time)
 - mob.gd: health, take_damage(), died signal
 - main.gd: kill score, score -> coins, mob health scaling
-- hud.gd: health bar, coins, game over results, shop UI
+- hud.gd: health bar, coins, game over results, shop UI, reset button + confirmation dialog
 
 ## Attack graphics
 - Open player.tscn, select the Player node, and look under "Slash graphics" in the Inspector.
@@ -26,27 +30,47 @@
 - The art can be drawn at any angle. Describe it with: Slash Pivot (pixel in the image that sits on the player, e.g. the tip of a fan), Slash Art Angle (direction the middle of the art points: 0 = right, -90 = up, 90 = down, 180 = left), Slash Art Length (pixels from pivot to far end; scaled to match the attack range).
 - Slash Lead Degrees: angle from the art's middle to its leading edge. The leading edge rides the blade and the rest trails behind. 0 centers the art on the blade.
 - Draw it for the left-to-right (clockwise) swing. The right-to-left swing is a mirror image, handled automatically. Slash Flip Y swaps this if swings look backwards.
-- Animations are stretched or squashed to last exactly Sweep Time.
+- Animations are stretched or squashed to last exactly the current swing time (Sweep Time divided by the Attack Speed multiplier).
 - Slash Distance: how far from the player the slash orbits (pixels). The art is scaled to fill the space from that distance out to the attack range, and the hit area still covers everything between the player and the slash.
 - Slash Scale nudges the art size. Debug Draw Attack shows the real hit area in red.
 - With no art assigned, a white placeholder trail is drawn.
 - Defaults are set for slash.png: pivot (482, 1064), angle -80, length 850, lead 54.
 
+## Debugging hitboxes
+- Collision shapes (player/mob hurtboxes, used for contact damage): Godot editor > Debug menu > Visible Collision Shapes, then run the game.
+- Sweep attack hit area: tick Debug Draw Attack on the Player node (player.tscn > Slash graphics). It is faint (15% red) and only visible during a swing. For easier viewing, temporarily raise sweep_time and attack_cooldown, or hold the attack button.
+- The sweep uses distance + angle math with each mob's hit_radius (45), NOT the mob's collision shape (about 57 px after scaling). A mob counts as hit once the blade touches its edge.
+
 ## Tuning knobs
 - main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
-- player.gd (exported): base_max_health, base_attack_damage, base_attack_radius (sweep reach from the player, including the gap), attack_arc_degrees (sweep width), attack_cooldown, sweep_time, invulnerability_time
+- player.gd (exported): base_max_health, base_attack_damage, base_attack_radius (sweep reach from the player, including the gap), attack_arc_degrees (sweep width), attack_cooldown, sweep_time (both are the level-0 values; Attack Speed divides them), invulnerability_time
 - mob.gd (exported): max_health, contact_damage, hit_radius
-- save_data.gd UPGRADES: costs, growth, max levels, bonus per level
+- save_data.gd UPGRADES: costs, growth, max levels, bonus per level (e.g. attack_speed per_level 0.15)
+- hud.gd: RESET button position is START button position + Vector2(0, 90) in _build_reset_button()
+- player.gd: sprite flip direction is the flip_h line in _process (velocity.x > 0)
 
 ## Notes
 - Needs Godot 4.1+ (SaveData uses static variables).
 - The WASD move actions and the "attack" action (Space or left click) are registered in code if they do not already exist in the Input Map.
-- To reset progress, delete the save file (Project > Open User Data Folder > save.cfg).
+- Save data lives in user://save.cfg (Windows: %APPDATA%\Godot\app_userdata\<project name>\save.cfg). It is outside the project, so it is never committed or included in a release: every player starts fresh.
+- To reset progress, use the RESET button on the main menu, or delete the save file (Project > Open User Data Folder > save.cfg).
+- Existing save files are compatible with new upgrades: a missing upgrade just starts at level 0.
+
+## Publishing a release (GitHub)
+- Commit and push: git add . / git commit -m "..." / git push (make sure .godot/ is in .gitignore).
+- Tag: git tag -a v0.2.0 -m "Version 0.2.0" / git push origin v0.2.0 (match the naming of the existing 0.1.0 tag).
+- On github.com: Releases > Draft a new release > pick the tag > add notes > Publish.
+- Optional playable build: Project > Export, zip the exe + .pck, attach to the release.
 
 ## Known bugs
 - (none yet, but the newest changes have not been playtested)
+- Not yet playtested: Attack Speed upgrade, RESET button, hold-to-attack, flipped sprite.
 
 ## Features i'd like to add
 - [x] Health system for player and mobs
 - [x] Ability to attack, like a short range AOE sweep
 - [x] Converting score to a permanent currency like coins, that can be used to buy upgrades
+- [x] Attack speed upgrade
+- [x] Reset progress button
+- [x] Hold to keep attacking
+- [x] character selection, with unique mechanics/ stats for each character

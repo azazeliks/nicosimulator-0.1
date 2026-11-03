@@ -1,0 +1,139 @@
+# HANDOFF NOTES (written for the next Claude)
+
+The user is continuing a Godot 4 game started in earlier chats. You will not remember
+those chats, so everything you need is here plus the files they upload. Read this file
+first, then read every uploaded .gd and .tscn before changing anything.
+
+## The project
+- Godot 4.1+ (SaveData uses static variables). Exact minor version unknown, ask if it matters.
+- Design notes call it "Cat Simulator". The title screen text says "Real Nico Simulator 2026".
+  The player character is a cat (sprites dumbcatface1.png / dumbcatface2.png).
+- Dodge-and-fight game: WASD movement, mobs drift across the screen, the player
+  has health and a mouse-aimed sweep attack. Score ticks up each second and per kill. At game
+  over, score converts to permanent coins that buy upgrades in a shop.
+- The user is learning Godot and git as they go. Explain things plainly, and say what each
+  step does and why.
+
+## Scene structure
+- Main (Node): Player (instance), HUD (instance), MobTimer, ScoreTimer, StartTimer,
+  StartPosition (Marker2D), MobPath (Path2D) / MobSpawnLocation (PathFollow2D)
+- Main connections: Player.hit -> Main.game_over, HUD.start_game -> Main.new_game, the three
+  timers -> their handlers in main.gd
+- Player (Area2D): AnimatedSprite2D, CollisionShape2D. body_entered -> _on_body_entered
+- Mob (RigidBody2D, group "mobs"): AnimatedSprite2D, VisibleOnScreenNotifier2D, CollisionShape2D
+- HUD (CanvasLayer): ScoreLabel, MessageLabel, StartButton, MessageTimer. Everything else in
+  the HUD (health bar, coins label, result label, shop, reset button) is built in code in hud.gd.
+
+## How each script works now
+player.gd
+- Input: WASD and the "attack" action (Space or left mouse) are registered in code at _ready
+  if they don't already exist in the Input Map.
+- Stats: base_max_health, base_attack_damage, base_attack_radius, speed, attack_cooldown,
+  sweep_time, invulnerability_time. apply_upgrades() combines base stats with SaveData bonuses
+  at the start of every run (called from start()).
+- Health: take_damage() with invulnerability frames (sprite blinks). _die() emits `hit`.
+  health_changed(current, maximum) feeds the HUD. _physics_process also re-checks overlapping
+  mobs so a mob that stays overlapped after i-frames still hurts.
+- Attack: a timed sweep, not an instant hit. _attack() locks the aim direction at the mouse,
+  then _update_sweep() moves a "blade" angle across attack_arc_degrees over sweep_time (ease-out).
+  _apply_sweep_hits() damages each mob once, when the blade reaches it. Hit test is distance
+  from the player (no inner cutoff) plus an angle test widened by the mob's hit_radius.
+  Direction alternates every attack (_next_dir), first swing of a run is left to right.
+- Attack speed (the shop upgrade) ONLY shortens the cooldown. The swing and slash animation
+  always take sweep_time. The cooldown is floored at the swing time.
+- Slash art is built in code (_setup_slash): SlashPivot (rotates with the blade) ->
+  SlashMirror (flips for the other swing, and sits slash_distance away from the player) ->
+  SlashSprite (AnimatedSprite2D). The art is described by exports, not by convention:
+  slash_pivot (pixel in the image that sits on the orbit point), slash_art_angle (which way the
+  middle of the art points), slash_art_length, slash_lead_degrees, slash_scale, slash_distance,
+  slash_flip_y, slash_angle_offset (visual-only tilt, mirrored between swings). The art is scaled
+  to fill the space from slash_distance out to attack_radius, and the animation is stretched to
+  last sweep_time. Assumes every animation frame has the same canvas size and pivot.
+  debug_draw_attack draws the real hit area in red. With no art, a white placeholder is drawn.
+
+mob.gd
+- max_health, contact_damage, hit_radius exports. take_damage() flashes red, shows a small
+  health bar once damaged, and _die() emits `died`, removes the mob from group "mobs", and
+  fades it out. Mobs that leave the screen free themselves.
+
+main.gd
+- Constants: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP (mobs get +1 HP
+  per N score so damage upgrades stay useful). Connects Player.health_changed to HUD.update_health.
+  game_over() converts score to coins, saves, and calls HUD.show_game_over().
+
+hud.gd
+- Health bar, coins label, results text, SHOP button (opens an upgrade shop built in code), and
+  a reset-progress button with a confirmation dialog (the user added this one themselves).
+
+save_data.gd (class_name SaveData, static, no autoload)
+- Coins and upgrade levels saved with ConfigFile to user://save.cfg.
+- UPGRADES dictionary holds every shop item: max_health, damage (shown as "Slash Damage"),
+  attack_range, attack_speed, speed. Each has base_cost, growth, max_level, per_level.
+  Player reads bonuses with SaveData.bonus("id").
+
+## Conventions and gotchas learned (please follow these)
+- Indentation is TABS. Mixed tabs/spaces breaks GDScript. After writing a .gd file, check with
+  grep -cP '^\t' and grep -cP '^ +\S'. (The shell is plain sh: no process substitution.)
+- GDScript type inference: an untyped export (@export var x = 1.0) makes `var y := x * 2` fail
+  with "Cannot infer the type". Declare exports with := or an explicit type.
+- You cannot run Godot in your sandbox, so code is untested. Say so, and ask the user to paste
+  any error message they get.
+- Versions drift. The user edits files in other chats and uploads files with suffixes
+  (player_1.gd, main_1.tscn, ...). Always read the latest uploads, diff against what you last
+  produced, and base edits on THEIR version. Before blaming a setting, check their file actually
+  contains your change (this caused a real mix-up once).
+- Values saved in a .tscn (set in the Inspector) override script defaults. Their Player scene
+  currently sets slash_frames (3-frame animation from slashstart.png, slash.png, slashend.png),
+  slash_flip_y = true and debug_draw_attack = true.
+- Prefer building new UI/nodes in code over editing .tscn files by hand. If a .tscn must change,
+  keep the edit small and explain it.
+- Deliver complete updated files and present them, rather than snippets, unless the change is tiny.
+- Keep replies plain and concrete. The user likes short step-by-step explanations.
+
+## Latest versions to ask for
+The user should upload their current copy of every .gd and .tscn. Two files were last
+produced by the previous Claude and may not be in their project yet, so confirm:
+- player.gd (has slash_angle_offset and the attack-speed change)
+- save_data.gd (renames "Claw Damage" to "Slash Damage")
+
+## NEW FEATURE: character selection (agreed plan, not started)
+Goal: several playable characters with different starting stats and different attacks.
+
+Approach
+- Make characters DATA, not code. Each character is a small Resource (a .tres editable in the
+  Inspector): name, sprite frames, base stats (health, speed, damage, reach, cooldown) and which
+  attack it uses.
+- The attack is the hard part. It currently lives inside player.gd. Move attacks into their own
+  scripts with one shared interface (for example sweep, projectile, ground slam). The player just
+  says "perform my attack"; each character points at an attack plus its settings. The existing
+  slash graphics exports move onto the sweep attack.
+
+Order of work (test and commit after each step)
+1. Move the current sweep into its own attack script with NO change in how it plays.
+2. Add the character resource and run the existing cat through it.
+3. Add a second character with different stats.
+4. Add a second attack type.
+5. Build the selection screen between the title screen and the start of a run.
+6. Save the last-picked character. Optionally make characters unlockable with coins.
+
+Decisions still open (ask the user early, they change the save file layout)
+- Are shop upgrades shared by all characters (simplest; they stack on each character's base
+  stats) or tracked per character?
+- How many characters, and what should their attacks be?
+- Should characters be unlockable with coins, or all available from the start?
+
+Things to watch when refactoring
+- apply_upgrades(), start() and the stat variables in player.gd, plus anything reading
+  attack_radius or attack_damage.
+- The "attack_range" upgrade scales reach, and "attack_speed" scales cooldown only.
+- hud.gd needs a character select screen; main.gd's new_game() should pass the chosen character.
+- Mob.hit_radius is used by the sweep hit test. Other attack types should reuse it.
+- Keep SaveData backwards compatible so the user's existing coins and upgrades are not wiped.
+
+## Suggested first message in the new chat
+Confirm which files you received and which versions, summarize back the current architecture in
+a few lines, ask the three open decisions above, then do step 1 only and have the user test it.
+
+## Before starting the new chat (for the user)
+- Commit the current working version to git as a safe point.
+- Upload every .gd and .tscn file, DESIGN_NOTES.txt and this file. Image files are not needed.
