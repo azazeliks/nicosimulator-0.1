@@ -105,6 +105,10 @@ func _process(delta):
 	_update_invulnerability(delta)
 	_update_regen(delta)
 
+	# Some attacks (the bruiser's dash) move the player themselves, so skip normal movement
+	if attack != null and attack.is_controlling_movement():
+		return
+
 	var velocity = Vector2.ZERO
 	if Input.is_action_pressed("move_right"): velocity.x += 1
 	if Input.is_action_pressed("move_left"):  velocity.x -= 1
@@ -184,6 +188,8 @@ func apply_upgrades() -> void:
 func take_damage(amount: int = 1) -> void:
 	if not alive or _invuln_left > 0.0:
 		return
+	if attack != null and attack.is_invulnerable():
+		return  # e.g. mid-dash
 	health = maxi(health - amount, 0)
 	health_changed.emit(health, max_health)
 	if health <= 0:

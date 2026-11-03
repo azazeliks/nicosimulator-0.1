@@ -8,6 +8,8 @@ signal died
 
 var health := 0
 var _dead := false
+var _knock_tween: Tween
+var _base_velocity := Vector2.ZERO  # The mob's normal drifting velocity, restored after a knockback
 
 
 func _ready():
@@ -25,6 +27,21 @@ func take_damage(amount: int = 1) -> void:
 		_die()
 	else:
 		_flash()
+
+
+# Shoves the mob away from a point: it starts at `speed` and slows back down to its
+# normal velocity over `duration` seconds. A second knockback while one is running
+# restarts the push but still returns to the original drifting velocity.
+func knockback(direction: Vector2, speed: float, duration: float) -> void:
+	if _dead:
+		return
+	if _knock_tween != null and _knock_tween.is_valid():
+		_knock_tween.kill()  # Keep _base_velocity from the first knockback
+	else:
+		_base_velocity = linear_velocity
+	linear_velocity = direction * speed
+	_knock_tween = create_tween()
+	_knock_tween.tween_property(self, "linear_velocity", _base_velocity, maxf(duration, 0.01))
 
 
 func _flash() -> void:

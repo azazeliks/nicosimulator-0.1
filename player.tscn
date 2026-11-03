@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://mb8f10h52q7a" path="res://player.gd" id="1_i3pqv"]
 [ext_resource type="Texture2D" uid="uid://b48emedwjkfdw" path="res://dumbcatface1.png" id="2_hqtel"]
+[ext_resource type="Resource" path="res://dragon.tres" id="2_sweqy"]
 [ext_resource type="Texture2D" uid="uid://b65ujt0nmnlha" path="res://dumbcatface2.png" id="3_sweqy"]
-[ext_resource type="Resource" uid="uid://crv6eq5313dl5" path="res://cat.tres" id="5_cat"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_1jxqw"]
 animations = [{
@@ -68,7 +68,7 @@ radius = 295.108
 
 [node name="Player" type="Area2D"]
 script = ExtResource("1_i3pqv")
-character = ExtResource("5_cat")
+character = ExtResource("2_sweqy")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 scale = Vector2(0.2, 0.2)

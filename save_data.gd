@@ -54,6 +54,16 @@ const UPGRADES := {
 		"desc": "+1 projectile per shot per level",
 		"base_cost": 60, "growth": 2.0, "max_level": 3, "per_level": 1.0,
 	},
+	"knockback": {
+		"name": "Knockback",
+		"desc": "+25% knockback power per level",
+		"base_cost": 14, "growth": 1.6, "max_level": 5, "per_level": 0.25,
+	},
+	"dash_distance": {
+		"name": "Dash Distance",
+		"desc": "+20% dash distance per level",
+		"base_cost": 12, "growth": 1.6, "max_level": 5, "per_level": 0.2,
+	},
 }
 
 static var _coins: int = 0

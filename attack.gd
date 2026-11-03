@@ -42,6 +42,17 @@ func tick(_delta: float) -> void:
 	pass
 
 
+# Return true while the attack is moving the player itself (like a dash). The player then
+# skips its normal movement and attack input until this returns false again.
+func is_controlling_movement() -> bool:
+	return false
+
+
+# Return true while the player should take no damage (for example during a dash).
+func is_invulnerable() -> bool:
+	return false
+
+
 # The player asks for an attack aimed at a point in the world.
 # Returns true if the attack actually started (false while on cooldown).
 func try_attack(_target: Vector2) -> bool:
