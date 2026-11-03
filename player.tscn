@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://cfho1snx16w5t"]
+[gd_scene load_steps=11 format=3 uid="uid://cfho1snx16w5t"]
 
 [ext_resource type="Script" uid="uid://mb8f10h52q7a" path="res://player.gd" id="1_i3pqv"]
 [ext_resource type="Texture2D" uid="uid://gsylht6rbpol" path="res://slashstart.png" id="2_2hs0m"]
@@ -6,23 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://oeefebnoclv3" path="res://slash.png" id="2_sweqy"]
 [ext_resource type="Texture2D" uid="uid://b65ujt0nmnlha" path="res://dumbcatface2.png" id="3_sweqy"]
 [ext_resource type="Texture2D" uid="uid://dn6ui0aijq6ke" path="res://slashend.png" id="4_1jxqw"]
-
-[sub_resource type="SpriteFrames" id="SpriteFrames_dw050"]
-animations = [{
-"frames": [{
-"duration": 1.0,
-"texture": ExtResource("2_2hs0m")
-}, {
-"duration": 1.0,
-"texture": ExtResource("2_sweqy")
-}, {
-"duration": 1.0,
-"texture": ExtResource("4_1jxqw")
-}],
-"loop": true,
-"name": &"default",
-"speed": 5.0
-}]
+[ext_resource type="Script" uid="uid://cs3j87fnpefhv" path="res://sweep_attack.gd" id="5_sweep"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_1jxqw"]
 animations = [{
@@ -85,12 +69,25 @@ animations = [{
 [sub_resource type="CircleShape2D" id="CircleShape2D_2hs0m"]
 radius = 295.108
 
+[sub_resource type="SpriteFrames" id="SpriteFrames_dw050"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_2hs0m")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_sweqy")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_1jxqw")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
 [node name="Player" type="Area2D"]
 script = ExtResource("1_i3pqv")
-sweep_time = 0.3
-slash_frames = SubResource("SpriteFrames_dw050")
-slash_flip_y = true
-slash_angle_offset = 20.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 scale = Vector2(0.2, 0.2)
@@ -101,5 +98,12 @@ animation = &"down"
 position = Vector2(2, 14)
 scale = Vector2(0.2, 0.2)
 shape = SubResource("CircleShape2D_2hs0m")
+
+[node name="SweepAttack" type="Node2D" parent="."]
+script = ExtResource("5_sweep")
+sweep_time = 0.3
+slash_frames = SubResource("SpriteFrames_dw050")
+slash_flip_y = true
+slash_angle_offset = 20.0
 
 [connection signal="body_entered" from="." to="." method="_on_body_entered"]
