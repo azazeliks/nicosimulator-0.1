@@ -70,14 +70,15 @@ radius = 295.108
 script = ExtResource("1_i3pqv")
 slash_texture = ExtResource("2_sweqy")
 slash_flip_y = true
+debug_draw_attack = true
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 scale = Vector2(0.2, 0.2)
 sprite_frames = SubResource("SpriteFrames_1jxqw")
-animation = &"up"
+animation = &"down"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(20, 51)
+position = Vector2(2, 14)
 scale = Vector2(0.2, 0.2)
 shape = SubResource("CircleShape2D_2hs0m")
 

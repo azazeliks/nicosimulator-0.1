@@ -9,6 +9,8 @@ var _health_label: Label
 var _coins_label: Label
 var _result_label: Label
 var _shop_button: Button
+var _reset_button: Button
+var _reset_dialog: ConfirmationDialog
 var _shop_root: Control
 var _shop_coins_label: Label
 var _shop_rows: VBoxContainer
@@ -19,6 +21,7 @@ func _ready() -> void:
 	_build_coins_label()
 	_build_result_label()
 	_build_shop_button()
+	_build_reset_button()
 	_build_shop()  # Built last so it draws on top of everything else
 	update_coins(SaveData.get_coins())
 
@@ -42,6 +45,7 @@ func show_game_over(final_score: int = 0, earned: int = 0, total_coins: int = 0)
 	await get_tree().create_timer(1.0).timeout
 	$StartButton.show()
 	_shop_button.show()
+	_reset_button.show()
 
 
 func update_score(score):
@@ -51,6 +55,7 @@ func update_score(score):
 func _on_start_button_pressed():
 	$StartButton.hide()
 	_shop_button.hide()
+	_reset_button.hide()
 	_result_label.hide()
 	start_game.emit()
 
@@ -120,6 +125,33 @@ func _build_shop_button() -> void:
 	add_child(_shop_button)
 	_shop_button.position = $StartButton.position + Vector2(0, 45)
 	_shop_button.pressed.connect(_open_shop)
+
+
+func _build_reset_button() -> void:
+	_reset_button = Button.new()
+	_reset_button.text = "RESET"
+	_reset_button.custom_minimum_size = Vector2(56, 31)
+	add_child(_reset_button)
+	_reset_button.position = $StartButton.position + Vector2(0, 90)
+	_reset_button.pressed.connect(_on_reset_pressed)
+
+	# Asks before deleting anything, since this can't be undone
+	_reset_dialog = ConfirmationDialog.new()
+	_reset_dialog.title = "Reset progress"
+	_reset_dialog.dialog_text = "Erase all coins and upgrades?\nThis cannot be undone."
+	_reset_dialog.ok_button_text = "Erase"
+	_reset_dialog.cancel_button_text = "Cancel"
+	_reset_dialog.confirmed.connect(_on_reset_confirmed)
+	add_child(_reset_dialog)
+
+
+func _on_reset_pressed() -> void:
+	_reset_dialog.popup_centered()
+
+
+func _on_reset_confirmed() -> void:
+	SaveData.reset()
+	update_coins(SaveData.get_coins())
 
 
 # ---------------------------------------------------------------------- shop

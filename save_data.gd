@@ -108,3 +108,11 @@ static func try_buy(id: String) -> bool:
 	_levels[id] = get_level(id) + 1
 	save_data()
 	return true
+
+
+# Wipes all coins and upgrade levels, and overwrites the save file.
+static func reset() -> void:
+	_loaded = true  # Don't let a later _ensure_loaded() reload the old file
+	_coins = 0
+	_levels.clear()
+	save_data()

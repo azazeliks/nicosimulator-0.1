@@ -124,12 +124,14 @@ func _process(delta):
 	if velocity.x != 0:
 		$AnimatedSprite2D.animation = "walk"
 		$AnimatedSprite2D.flip_v = false
-		$AnimatedSprite2D.flip_h = velocity.x < 0
+		$AnimatedSprite2D.flip_h = velocity.x > 0  # Art faces left by default, so flip when moving right
 	elif velocity.y != 0:
 		$AnimatedSprite2D.animation = "up"
 		$AnimatedSprite2D.flip_v = false
 
-	if Input.is_action_just_pressed("attack"):
+	# Held, not just pressed: _attack() ignores the call while on cooldown, so
+	# holding the button swings again as soon as the cooldown ends.
+	if Input.is_action_pressed("attack"):
 		_attack()
 
 
