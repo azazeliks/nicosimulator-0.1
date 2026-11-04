@@ -148,37 +148,16 @@ func _update_slash(delta: float) -> void:
 
 # Damages each mob (once per slash) as the blade passes over it.
 func _apply_slash_hits(half_arc: float) -> void:
-	var aim_vec := Vector2.from_angle(_slash_aim)
-	for mob in get_tree().get_nodes_in_group("mobs"):
-		if not is_instance_valid(mob) or not mob.has_method("take_damage"):
-			continue
+	# The part of the arc the blade has already swept over: from where the swing started
+	# to where the blade is now
+	var min_rel: float = -half_arc if _slash_dir > 0 else _slash_cur_rel
+	var max_rel: float = _slash_cur_rel if _slash_dir > 0 else half_arc
+	for mob in MobHits.mobs_in_sector(get_tree(), global_position, attack_radius, _slash_aim, min_rel, max_rel):
 		var id: int = mob.get_instance_id()
 		if _hit_this_slash.has(id):
 			continue
-
-		var hit_r: float = mob.hit_radius
-		var to_mob: Vector2 = mob.global_position - global_position
-		var dist := to_mob.length()
-		if dist > attack_radius + hit_r:
-			continue
-
-		# A mob right on top of the player is hit immediately
-		if dist <= hit_r:
-			_hit_this_slash[id] = true
-			mob.take_damage(damage)
-			continue
-
-		# Mobs have size, so widen their angle a little: a mob counts as soon as
-		# the blade touches its edge.
-		var rel := aim_vec.angle_to(to_mob)  # Mob's angle relative to the aim direction
-		var margin := asin(clampf(hit_r / dist, 0.0, 1.0))
-		if absf(rel) > half_arc + margin:
-			continue  # Outside the cone entirely
-
-		var reached := (rel - margin <= _slash_cur_rel) if _slash_dir > 0 else (rel + margin >= _slash_cur_rel)
-		if reached:
-			_hit_this_slash[id] = true
-			mob.take_damage(damage)
+		_hit_this_slash[id] = true
+		mob.take_damage(damage)
 
 
 func _end_slash() -> void:

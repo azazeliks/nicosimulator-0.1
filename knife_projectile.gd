@@ -37,18 +37,7 @@ func _process(delta: float) -> void:
 
 	# Check the whole path travelled this frame (not just the end point), so a fast knife
 	# can't skip over a mob. The mob closest along the path is the one that gets hit.
-	var hit_mob: Node2D = null
-	var hit_dist := INF
-	for mob in get_tree().get_nodes_in_group("mobs"):
-		if not is_instance_valid(mob) or not mob.has_method("take_damage"):
-			continue
-		var closest := Geometry2D.get_closest_point_to_segment(mob.global_position, from, to)
-		var reach: float = body_radius + float(mob.hit_radius)
-		if closest.distance_to(mob.global_position) <= reach:
-			var along := from.distance_to(closest)
-			if along < hit_dist:
-				hit_dist = along
-				hit_mob = mob
+	var hit_mob := MobHits.first_mob_on_segment(get_tree(), from, to, body_radius)
 	if hit_mob != null:
 		hit_mob.take_damage(damage)
 		queue_free()

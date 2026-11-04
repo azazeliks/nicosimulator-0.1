@@ -45,26 +45,18 @@ func _process(delta: float) -> void:
 		_explode()
 		return
 
-	# Explode as soon as we touch a mob (same size idea as the slash: distance + hit_radius)
-	for mob in get_tree().get_nodes_in_group("mobs"):
-		if not is_instance_valid(mob):
-			continue
-		var reach: float = body_radius + float(mob.hit_radius)
-		if global_position.distance_to(mob.global_position) <= reach:
-			_explode()
-			return
+	# Explode as soon as we touch a mob
+	if not MobHits.mobs_in_circle(get_tree(), global_position, body_radius).is_empty():
+		_explode()
+		return
 	queue_redraw()
 
 
 func _explode() -> void:
 	_exploding = true
 	_explode_elapsed = 0.0
-	for mob in get_tree().get_nodes_in_group("mobs"):
-		if not is_instance_valid(mob) or not mob.has_method("take_damage"):
-			continue
-		var reach: float = explosion_radius + float(mob.hit_radius)
-		if global_position.distance_to(mob.global_position) <= reach:
-			mob.take_damage(damage)
+	for mob in MobHits.mobs_in_circle(get_tree(), global_position, explosion_radius):
+		mob.take_damage(damage)
 	queue_redraw()
 
 

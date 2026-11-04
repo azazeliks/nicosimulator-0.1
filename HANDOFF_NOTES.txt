@@ -99,9 +99,10 @@ Attacks
 - projectile_attack.gd (class ProjectileAttack) + projectile.gd (class Projectile) + dragon_projectile_attack.tscn.
   Projectiles are added to the CURRENT SCENE (not under the player), join group "projectiles", and
   cancel() clears that group. They are drawn in code.
-- dash_attack.gd (class DashAttack) + bruiser_dash_attack.tscn. Moves the player in tick(), then _slam():
-  damage + mob.knockback(). Drawn in code. Optional extras for secondary use: slam_delay (delayed shockwave
-  at the dash's end point), knockback_enabled (false = damage only). windup_time 0 = instant dash.
+- dash_attack_base.gd (class DashAttackBase) holds what both dashes share. dash_attack.gd (class DashAttack) + bruiser_dash_attack.tscn
+  is Alistar's: wind-up, locked direction, instant knockback "slam". delayed_dash_attack.gd (class DelayedDashAttack) +
+  android_dash_attack.tscn is Seven's right click: instant dash, delayed "slash dash" blast (damage only), path damage, movement
+  lock. Both are drawn in code. See "Cleanup progress" for the details.
 - throwing_knife_attack.gd (class ThrowingKnifeAttack) + knife_projectile.gd (class KnifeProjectile) +
   cat_knife_attack.tscn: Nico's secondary. Knives are added to the CURRENT SCENE, join group "knives".
 
@@ -113,9 +114,8 @@ Core
 - mob.gd: take_damage(), knockback(direction, speed, duration) (tweens linear_velocity back to the mob's
   normal velocity), died signal, hit_radius used by ALL attacks' hit tests.
 - main.gd: constants for score/coins/mob health; new_game(character = null) sets the character first.
-- hud.gd: health bar, coins, results, shop, reset button + dialog, and the selection screen
-  (_build_select_screen, _refresh_select, _make_card, _on_play_pressed). The shop shows the SELECTED
-  character's upgrades (hud calls SaveData.set_character before opening it).
+- hud.gd: health bar, coins, results, title buttons, reset button + dialog; it creates the shop and selection screens
+  (shop_screen.gd, character_select_screen.gd) and connects them. The shop opens on the SELECTED character.
 - save_data.gd (class SaveData): UPGRADES dictionary (9 upgrades, see DESIGN_NOTES); per-character levels;
   get_level / bonus / get_cost / try_buy use the CURRENT character (set with set_character);
   get_level_for / bonus_for work for any character (used by the selection cards);
@@ -140,7 +140,7 @@ Core
   keep the edit small and explain it. (Character and attack scenes were written by hand: keep their format.)
 - The Attack.configure signature has FOUR arguments now. Any new attack type must match it, and call
   super.configure(...) first.
-- Mobs are hit with distance + each mob's hit_radius (not their collision shape). New attacks should reuse that.
+- Mobs are hit with distance + each mob's hit_radius (not their collision shape). New attacks should reuse that through MobHits (mob_hits.gd).
 - Deliver complete updated files, or all the files that changed, and say which are new and which replace old ones.
 - Keep replies plain and concrete. The user likes short step-by-step explanations, a "To test" list
   after each step, and a question about the next step at the end.
@@ -167,7 +167,39 @@ button themselves earlier), the .tres files (balance), and the attack .tscn file
   first (base_slam_radius 240, slam_delay 0.5, slam_color (1, 0.35, 0.35), path_delay 0.45, path_damage_fraction 0.5,
   dash_time 0.1, attack_cooldown 3.0, base_dash_distance 420, windup_time 0, knockback_enabled false).
   Note: SlashAttack already uses slash_texture / slash_frames / slash_distance, so keep Seven's dash names distinct ("slash_dash_*").
-- Steps B to E: NOT STARTED. The user is open to the order A, B, C, D (B first makes the C split smaller).
+- Step B: DONE, untested until the user runs it. New mob_hits.gd (class MobHits, static functions taking get_tree() first):
+  mobs_in_circle, mobs_near_segment, first_mob_on_segment (knife: nearest along the path), mobs_in_sector (slash cone, with
+  min_rel / max_rel = the part of the arc swept so far). slash_attack.gd, projectile.gd, dash_attack.gd (_slam, _path_strike) and
+  knife_projectile.gd use it. New attacks should use MobHits too. The sector maths was checked against the old slash code with
+  400,000 random cases in Python (0 differences). One tiny difference: the fireball's touch test now also skips nodes without
+  take_damage(), like every other hit test (all mobs have it, so nothing changes in play).
+- Step C: DONE, untested until the user runs it. dash_attack.gd was split in three:
+  dash_attack_base.gd (class DashAttackBase, extends Attack): cooldown, the dash movement, invulnerability, drawing helpers
+    (_pick_art, _draw_circle_art, _draw_dash_streak, _draw_landing_effect). Subclasses override _start_sequence(), _tick_phases(delta),
+    _on_dash_finished(). Exports: attack_cooldown, base_dash_distance, dash_time, invulnerable_while_dashing, effect_time.
+  dash_attack.gd (class DashAttack): Alistar only. windup_time, windup_move_multiplier, base_slam_radius, base_knockback_speed,
+    knockback_time, post_slam_invulnerability, slam_color, slam art. Keeps the "slam" names. bruiser_dash_attack.tscn is unchanged.
+  delayed_dash_attack.gd (class DelayedDashAttack): Seven's right-click attack. "slash_dash" names: base_slash_dash_radius,
+    slash_dash_delay, lock_until_slash_dash, post_slash_dash_invulnerability, slash_dash_color, slash_dash_texture / _frames /
+    _art_scale; path_* exports keep their names. android_dash_attack.tscn was rewritten to point at the new script with the same
+    values under the new names (its uid is kept, so android.tres still finds it).
+  Dropped options that no scene used: windup and knockback_enabled on Seven's side; slam_delay, knockback_enabled, lock_until_slam and
+  path damage on Alistar's side (Alistar's slam is always instant, with knockback).
+  Checked by replaying the old and new timing logic side by side in Python (900 random runs, 0 differences). The Godot-specific code
+  (drawing, exports) is only checked by reading.
+- Step D: DONE, untested until the user runs it. hud.gd was split in three:
+  shop_screen.gd (class ShopScreen, extends Control): the shop overlay. open(character) starts on that character; signals
+    coins_changed(total) and closed. Its picker switches whose upgrades are shown and moves SaveData's current character with it.
+  character_select_screen.gd (class CharacterSelectScreen, extends Control): the cards, Upgrades / Play / Back buttons. Owns
+    `selected` (picked on start from SaveData's last character), open(), refresh(), apply_selected_to_save(); signals
+    upgrades_requested and play_requested(character). Saves the last character on Play.
+  hud.gd keeps: health bar, coins, result text, title buttons (START, SHOP, RESET), reset dialog, show_game_over / show_title,
+    and start_game(character). It creates both screens (select first, shop LAST so it draws on top) and wires the signals:
+    upgrades_requested -> _open_shop, coins_changed -> update_coins, closed -> _on_shop_closed (enables START, restores SaveData's
+    character to the selected one, refreshes the cards if visible), play_requested -> _on_play_requested (hides title buttons,
+    emits start_game). The moved function bodies were diffed against the originals: identical apart from names (and the shop now
+    emits coins_changed instead of calling update_coins directly).
+- Step E (optional): NOT STARTED.
 
 ## Planned cleanup (Step A done, B to E not started)
 Purpose: make the code easier to read and extend. NO gameplay changes. I rated the code about 7/10: easy to

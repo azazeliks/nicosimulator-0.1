@@ -60,12 +60,12 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 ## Selection screen
 - START opens it. One card per character: sprite preview (with tint), name, stats including purchased upgrades (HP, Speed, Damage, plus Regen for the android), and a short ability description.
 - Clicking anywhere on a card picks that character (gold border). Upgrades opens the shop for that character. Play starts the run. Back returns to the title screen. There is no title text and no per-card Select button.
-- It is built in code in hud.gd, so there are no scene changes for it.
+- It is built in code in character_select_screen.gd (class CharacterSelectScreen), so there are no scene changes for it.
 
 ## Scene structure
 - Main: Player, HUD, MobPath/MobSpawnLocation, MobTimer, ScoreTimer, StartTimer, StartPosition
 - Player: AnimatedSprite2D, CollisionShape2D. The attack node is created in code from the character's attack scene and added as a child at run time, so it does not show in player.tscn.
-- Everything in the HUD except the score label, message label and start button (health bar, coins label, result text, shop, reset button + dialog, selection screen) is built in code.
+- Everything in the HUD except the score label, message label and start button (health bar, coins label, result text, SHOP and RESET buttons + dialog) is built in code, and the shop and selection screens are built in code by their own scripts.
 - Fireballs and shockwaves are drawn in code (placeholder circles/rings); no art files needed.
 
 ## Scripts
@@ -77,12 +77,17 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - attack.gd: class Attack. The interface every attack follows (see handoff notes).
 - slash_attack.gd (+ cat_slash_attack.tscn, android_slash_attack.tscn): the slash attack and its two configured scenes.
 - projectile_attack.gd, projectile.gd (+ dragon_projectile_attack.tscn): the dragon's fireballs.
-- dash_attack.gd (+ bruiser_dash_attack.tscn): the bruiser's dash and shockwave (called the "slam" in the code). Also used as Seven's secondary (android_dash_attack.tscn: instant, delayed damage-only shockwave). Planned: split into one script per character, with "slash_dash" names for Seven's (see HANDOFF_NOTES.txt).
+- dash_attack_base.gd: class DashAttackBase. What both dashes share (cooldown, the dash movement, invulnerability, drawing helpers).
+- dash_attack.gd (+ bruiser_dash_attack.tscn): class DashAttack, Alistar's dash and shockwave (called the "slam" in the code).
+- delayed_dash_attack.gd (+ android_dash_attack.tscn): class DelayedDashAttack, Seven's right-click dash: instant, then a delayed damage-only blast (called the "slash dash" in the code) and optional path damage.
+- mob_hits.gd: class MobHits. The shared "which mobs does this attack touch" tests (circle, thick line, first-on-line, pie slice) used by every attack.
 - throwing_knife_attack.gd, knife_projectile.gd (+ cat_knife_attack.tscn): Nico's thrown knife (secondary).
 - player.gd: movement, health, invulnerability, regen, attack input (left and right click), becomes a character via set_character().
 - mob.gd: health, take_damage(), knockback(), died signal, steering toward the player (_integrate_forces).
 - main.gd: kill score, score -> coins, mob health scaling, starts a run with the chosen character.
-- hud.gd: health bar, coins, game over results, shop UI, reset button, selection screen.
+- hud.gd: health bar, coins, game over results, title buttons, reset button. Creates the two screens below and connects them.
+- shop_screen.gd: class ShopScreen. The upgrade shop overlay, built in code.
+- character_select_screen.gd: class CharacterSelectScreen. The character cards screen (Upgrades / Play / Back), built in code.
 - pause_menu.gd: class PauseMenu. The Escape pause screen (Resume / Exit to main menu), built in code and created by Main.
 
 ## How to add things
@@ -94,7 +99,7 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 ## Tuning knobs
 - main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
 - Each character .tres: speed, base_max_health, base_attack_damage, regen_interval, sprite_tint, upgrade_ids, upgrade_overrides, description
-- Attack scenes (select the root node, Inspector): slash (base_attack_radius, attack_arc_degrees, attack_cooldown, slash_time, slash art settings), projectile (attack_cooldown, projectile_speed, fuse_time, base_explosion_radius, base_projectile_count, spread_degrees), dash (attack_cooldown, windup_time, windup_move_multiplier, base_dash_distance, dash_time, base_slam_radius, base_knockback_speed, knockback_time, slam_delay, knockback_enabled, invulnerable_while_dashing, post_slam_invulnerability), knife (attack_cooldown, knife_speed, base_knife_range, damage_fraction, knife_length, knife_body_radius, knife_color, muzzle_distance)
+- Attack scenes (select the root node, Inspector): slash (base_attack_radius, attack_arc_degrees, attack_cooldown, slash_time, slash art settings), projectile (attack_cooldown, projectile_speed, fuse_time, base_explosion_radius, base_projectile_count, spread_degrees), dash for Alistar (attack_cooldown, base_dash_distance, dash_time, invulnerable_while_dashing, effect_time, windup_time, windup_move_multiplier, base_slam_radius, base_knockback_speed, knockback_time, post_slam_invulnerability, slam_color), delayed dash for Seven (attack_cooldown, base_dash_distance, dash_time, base_slash_dash_radius, slash_dash_delay, lock_until_slash_dash, post_slash_dash_invulnerability, slash_dash_color, path_delay, path_width, path_damage_fraction), knife (attack_cooldown, knife_speed, base_knife_range, damage_fraction, knife_length, knife_body_radius, knife_color, muzzle_distance)
 - player.gd (exported): invulnerability_time
 - mob.gd (exported): max_health, contact_damage, hit_radius, turn_rate
 - save_data.gd UPGRADES: costs, growth, max levels, bonus per level
