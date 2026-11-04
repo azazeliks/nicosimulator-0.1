@@ -3,63 +3,77 @@
 # Needs no autoload or scene: call it anywhere, e.g. SaveData.get_coins().
 # Uses static variables, which require Godot 4.1+.
 #
-# Coins are shared by all characters. Upgrade LEVELS are tracked per character:
-# get_level(), bonus(), get_cost() and try_buy() all use the character picked with
-# SaveData.set_character(id, upgrade_ids) (the Player does this when it becomes a character).
+# Coins are shared by all characters. Upgrade LEVELS are tracked per character, and every
+# function that deals with levels takes the CharacterData it is about as its first argument:
+# SaveData.get_level(character, SaveData.MAX_HEALTH). Nothing here remembers "the current
+# character", so there is no state to forget to reset.
 class_name SaveData
 extends RefCounted
 
 const SAVE_PATH := "user://save.cfg"
 const LEGACY_CHARACTER := "cat"  # Saves from before characters existed belong to the cat
 
+# Upgrade ids. Use these names instead of typing the text: a typo in SaveData.MAX_HELATH is an
+# error as soon as the game starts, while a typo in "max_helath" silently does nothing.
+# The TEXT of each id is saved in save.cfg and in the character .tres files, so never change it.
+const MAX_HEALTH := "max_health"
+const DAMAGE := "damage"
+const ATTACK_RANGE := "attack_range"
+const ATTACK_SPEED := "attack_speed"
+const SPEED := "speed"
+const REGEN := "regen"
+const PROJECTILE_COUNT := "projectile_count"
+const KNOCKBACK := "knockback"
+const DASH_DISTANCE := "dash_distance"
+
 # Every upgrade the shop can sell. Each character lists which of these it can buy
-# (CharacterData.upgrade_ids). To add a new one, add an entry here, apply its bonus in
-# Player.apply_upgrades() using SaveData.bonus("your_id"), then add the id to the
-# characters that should offer it.
+# (CharacterData.upgrade_ids). To add a new one, add a constant above and an entry here, apply
+# its bonus in Player.apply_upgrades() (or in the attack that uses it, with bonus(SaveData.YOUR_ID)),
+# then add the id to the characters that should offer it.
 #   base_cost / growth : cost of level N is ceil(base_cost * growth^N)
 #   per_level          : bonus gained per level (meaning depends on the upgrade)
 const UPGRADES := {
-	"max_health": {
+	MAX_HEALTH: {
 		"name": "Max Health",
 		"desc": "+1 max HP per level",
 		"base_cost": 15, "growth": 1.6, "max_level": 5, "per_level": 1.0,
 	},
-	"damage": {
+	DAMAGE: {
 		"name": "Slash Damage",
 		"desc": "+1 attack damage per level",
 		"base_cost": 20, "growth": 1.6, "max_level": 5, "per_level": 1.0,
 	},
-	"attack_range": {
+	ATTACK_RANGE: {
 		"name": "Slash Range",
 		"desc": "+15% attack range per level",
 		"base_cost": 12, "growth": 1.6, "max_level": 5, "per_level": 0.15,
 	},
-	"attack_speed": {
+	ATTACK_SPEED: {
 		"name": "Attack Speed",
 		"desc": "+15% attack speed per level",
 		"base_cost": 18, "growth": 1.6, "max_level": 5, "per_level": 0.15,
 	},
-	"speed": {
+	SPEED: {
 		"name": "Move Speed",
 		"desc": "+25 move speed per level",
 		"base_cost": 10, "growth": 1.6, "max_level": 5, "per_level": 25.0,
 	},
-	"regen": {
+	REGEN: {
 		"name": "Regeneration",
 		"desc": "+20% HP regeneration speed per level",
 		"base_cost": 25, "growth": 1.6, "max_level": 5, "per_level": 0.2,
 	},
-	"projectile_count": {
+	PROJECTILE_COUNT: {
 		"name": "Extra Projectiles",
 		"desc": "+1 projectile per shot per level",
 		"base_cost": 60, "growth": 2.0, "max_level": 3, "per_level": 1.0,
 	},
-	"knockback": {
+	KNOCKBACK: {
 		"name": "Knockback",
 		"desc": "+25% knockback power per level",
 		"base_cost": 14, "growth": 1.6, "max_level": 5, "per_level": 0.25,
 	},
-	"dash_distance": {
+	DASH_DISTANCE: {
 		"name": "Dash Distance",
 		"desc": "+20% dash distance per level",
 		"base_cost": 12, "growth": 1.6, "max_level": 5, "per_level": 0.2,
@@ -68,9 +82,6 @@ const UPGRADES := {
 
 static var _coins: int = 0
 static var _levels: Dictionary = {}  # character id -> { upgrade id -> level }
-static var _current: String = "cat"  # Whose upgrades the functions below use
-static var _available: PackedStringArray = PackedStringArray()  # Upgrades the current character can buy (empty = all)
-static var _overrides: Dictionary = {}  # Current character's shop wording changes (see CharacterData.upgrade_overrides)
 static var _last_character: String = ""  # Character picked on the selection screen last time
 static var _loaded: bool = false
 
@@ -110,7 +121,6 @@ static func _levels_for(character_id: String) -> Dictionary:
 
 static func save_data() -> void:
 	_ensure_loaded()
-	_levels_for(_current)  # Make sure the current character gets a section
 	var cfg := ConfigFile.new()
 	cfg.set_value("progress", "coins", _coins)
 	cfg.set_value("progress", "last_character", _last_character)
@@ -118,19 +128,11 @@ static func save_data() -> void:
 		var levels: Dictionary = _levels[character_id]
 		for id in UPGRADES:
 			cfg.set_value("upgrades_" + str(character_id), id, int(levels.get(id, 0)))
-	cfg.save(SAVE_PATH)
-
-
-# Picks whose upgrade levels get_level / bonus / get_cost / try_buy use, and which
-# upgrades the shop offers. An empty list means every upgrade is offered.
-static func set_character(character_id: String, upgrade_ids: PackedStringArray = PackedStringArray(), upgrade_overrides: Dictionary = {}) -> void:
-	_current = character_id
-	_available = upgrade_ids
-	_overrides = upgrade_overrides
-
-
-static func get_character() -> String:
-	return _current
+	var error := cfg.save(SAVE_PATH)
+	if error != OK:
+		# Without this message a failed save would be invisible: the game would carry on and
+		# the coins and upgrades would be gone next time it is opened.
+		push_error("SaveData: could not save progress to %s (error code %d)." % [SAVE_PATH, error])
 
 
 # The character picked on the selection screen last time ("" if none yet). Saved to disk.
@@ -145,26 +147,31 @@ static func set_last_character(character_id: String) -> void:
 	save_data()
 
 
-# Upgrade ids the current character can buy, in shop order.
-static func available_upgrades() -> Array:
+# ------------------------------------------------------ what a character can buy
+
+# Upgrade ids the character can buy, in shop order.
+static func available_upgrades(character: CharacterData) -> Array:
 	var result := []
 	for id in UPGRADES:
-		if is_available(id):
+		if is_available(character, id):
 			result.append(id)
 	return result
 
 
-static func is_available(id: String) -> bool:
-	return _available.is_empty() or _available.has(id)
+# An empty upgrade_ids list on the character means every upgrade is offered.
+static func is_available(character: CharacterData, id: String) -> bool:
+	return character.upgrade_ids.is_empty() or character.upgrade_ids.has(id)
 
 
-# The shop info for an upgrade as the current character sees it (name/desc may be overridden).
-static func upgrade_info(id: String) -> Dictionary:
+# The shop info for an upgrade as this character sees it (name/desc may be overridden).
+static func upgrade_info(character: CharacterData, id: String) -> Dictionary:
 	var info: Dictionary = UPGRADES[id].duplicate()
-	if _overrides.has(id):
-		info.merge(_overrides[id], true)
+	if character.upgrade_overrides.has(id):
+		info.merge(character.upgrade_overrides[id], true)
 	return info
 
+
+# ------------------------------------------------------------------- coins
 
 static func get_coins() -> int:
 	_ensure_loaded()
@@ -177,45 +184,37 @@ static func add_coins(amount: int) -> void:
 	save_data()
 
 
-static func get_level(id: String) -> int:
-	return get_level_for(_current, id)
+# --------------------------------------------------------- levels and buying
 
-
-# The level of an upgrade for any character (the selection screen uses this to show stats)
-static func get_level_for(character_id: String, id: String) -> int:
+static func get_level(character: CharacterData, id: String) -> int:
 	_ensure_loaded()
-	return int(_levels_for(character_id).get(id, 0))
+	return int(_levels_for(character.id).get(id, 0))
 
 
-static func is_maxed(id: String) -> bool:
-	return get_level(id) >= int(UPGRADES[id]["max_level"])
+static func is_maxed(character: CharacterData, id: String) -> bool:
+	return get_level(character, id) >= int(UPGRADES[id]["max_level"])
 
 
-static func get_cost(id: String) -> int:
+static func get_cost(character: CharacterData, id: String) -> int:
 	var info: Dictionary = UPGRADES[id]
-	return ceili(float(info["base_cost"]) * pow(float(info["growth"]), get_level(id)))
+	return ceili(float(info["base_cost"]) * pow(float(info["growth"]), get_level(character, id)))
 
 
-# Total bonus from an upgrade at its current level (level * per_level).
-static func bonus(id: String) -> float:
-	return bonus_for(_current, id)
+# Total bonus from an upgrade at this character's level (level * per_level).
+static func bonus(character: CharacterData, id: String) -> float:
+	return get_level(character, id) * float(UPGRADES[id]["per_level"])
 
 
-# Same, for any character
-static func bonus_for(character_id: String, id: String) -> float:
-	return get_level_for(character_id, id) * float(UPGRADES[id]["per_level"])
-
-
-# Spends coins and raises the current character's level. Returns true if the purchase went through.
-static func try_buy(id: String) -> bool:
+# Spends coins and raises the character's level. Returns true if the purchase went through.
+static func try_buy(character: CharacterData, id: String) -> bool:
 	_ensure_loaded()
-	if not UPGRADES.has(id) or not is_available(id) or is_maxed(id):
+	if not UPGRADES.has(id) or not is_available(character, id) or is_maxed(character, id):
 		return false
-	var cost := get_cost(id)
+	var cost := get_cost(character, id)
 	if _coins < cost:
 		return false
 	_coins -= cost
-	_levels_for(_current)[id] = get_level(id) + 1
+	_levels_for(character.id)[id] = get_level(character, id) + 1
 	save_data()
 	return true
 

@@ -19,6 +19,13 @@ extends DashAttackBase
 @export var post_slash_dash_invulnerability := 0.3  # Extra protection after the dash, so mobs next to you can't hit you right away
 @export var slash_dash_color := Color(0.8, 0.8, 0.85)
 
+@export_group("Paralysis")
+# Mobs the dash passes through are frozen on the spot, and so is every mob inside the blast's
+# range when the dash ends. They stay frozen until the blast has landed (plus paralysis_extra_time)
+# and then carry on as they were. Mobs that wander into the blast zone later are not frozen.
+@export var paralysis_enabled := true
+@export var paralysis_extra_time := 0.3     # Seconds they stay frozen after the blast lands
+
 @export_group("Path damage")
 @export var path_delay := 0.0               # Seconds after the dash ends before the path it crossed deals damage (0 = the path does no damage)
 @export var path_width := 90.0              # Width of the danger zone in pixels (the range upgrade scales it)
@@ -36,6 +43,11 @@ extends DashAttackBase
 @export var slash_dash_texture: Texture2D
 @export var slash_dash_frames: SpriteFrames
 @export var slash_dash_art_scale := 1.0     # Nudges the blast art size (1 = exactly the blast's diameter)
+@export var blast_art_spin_degrees := 180.0 # The blast art turns clockwise this many degrees as it charges, ending facing the dash direction. 0 = no spin
+@export var blast_art_spin_time := 0.5      # Seconds the spin takes, counted from the moment the dash ends
+@export var rotate_blast_art := true        # Turns the blast art so the TOP of the image points the way the dash went (draw it with its top facing up)
+@export var path_art_width_scale := 1.0     # Makes the PATH art wider or thinner than the damaging path (1 = same width). Looks only: the path's hitbox is path_width
+@export var show_outlines := true          # The thin outlines drawn around the path and the blast while they charge (they show the real hitbox). Turn off to see only your art
 
 # Current-run stats (recalculated in configure)
 var slash_dash_radius := 170.0
@@ -43,6 +55,7 @@ var slash_dash_radius := 170.0
 var _slash_dash_pending := false     # Dash is over, the blast is still charging (slash_dash_delay)
 var _slash_dash_delay_left := 0.0
 var _slash_dash_pos := Vector2.ZERO  # Where the blast lands (world position)
+var _blast_rotation := 0.0           # How far the blast art is turned (set when the dash ends)
 var _path_pending := false           # Path damage is charging (path_delay)
 var _path_delay_left := 0.0
 var _path_from := Vector2.ZERO       # The path the dash covered (world positions)
@@ -97,8 +110,25 @@ func _tick_phases(delta: float) -> void:
 			_land_slash_dash()
 
 
+# Mobs the dash touches are frozen from then until the blast has landed. The path's width is
+# used for "touching", the same width the path damage uses.
+func _on_dash_step(from_world: Vector2, to_world: Vector2) -> void:
+	if not paralysis_enabled:
+		return
+	var half_width := path_width * range_mult * 0.5
+	var time_left := maxf(dash_time - _dash_elapsed, 0.0) + slash_dash_delay + paralysis_extra_time
+	for mob in MobHits.mobs_near_segment(get_tree(), from_world, to_world, half_width):
+		if mob.has_method("paralyze"):
+			mob.paralyze(time_left)
+
+
 func _on_dash_finished() -> void:
 	_slash_dash_pos = global_position  # The blast happens here, even if the player walks off during the delay
+	_blast_rotation = _dash_dir.angle() + PI * 0.5 if rotate_blast_art else 0.0  # Art with its top facing up turns to face the dash direction
+	if paralysis_enabled:  # Freeze everything the blast is about to hit, before it lands
+		for mob in MobHits.mobs_in_circle(get_tree(), _slash_dash_pos, slash_dash_radius):
+			if mob.has_method("paralyze"):
+				mob.paralyze(slash_dash_delay + paralysis_extra_time)
 	_grace_left = post_slash_dash_invulnerability  # Protection on landing, so mobs next to you can't hit you right away
 	if path_delay > 0.0:
 		_path_from = _dash_start
@@ -113,6 +143,14 @@ func _on_dash_finished() -> void:
 
 
 # The blast at the end of the dash: damages every mob in range (no knockback)
+# How far the blast art is turned, `elapsed` seconds after the dash ended: it starts spun back by
+# blast_art_spin_degrees and turns clockwise (positive angles are clockwise on screen) until it
+# faces the dash direction, then stays there.
+func _blast_art_angle(elapsed: float) -> float:
+	var progress := clampf(elapsed / maxf(blast_art_spin_time, 0.01), 0.0, 1.0)
+	return _blast_rotation - deg_to_rad(blast_art_spin_degrees) * (1.0 - progress)
+
+
 func _land_slash_dash() -> void:
 	_effect_left = effect_time
 	for mob in MobHits.mobs_in_circle(get_tree(), _slash_dash_pos, slash_dash_radius):
@@ -138,20 +176,23 @@ func _draw_path() -> void:
 	var width := path_width * range_mult
 	draw_set_transform(a, (b - a).angle(), Vector2.ONE)
 	var rect := Rect2(0.0, -width * 0.5, length, width)
+	var art_width := width * path_art_width_scale
+	var art_rect := Rect2(0.0, -art_width * 0.5, length, art_width)  # Where the art goes. `rect` stays the real danger zone
 	if _path_pending:
 		var charge := 1.0 - clampf(_path_delay_left / maxf(path_delay, 0.01), 0.0, 1.0)
 		var art := _pick_art(path_texture, path_frames, 0.0)
 		if art != null:
-			draw_texture_rect(art, rect, false, Color(1, 1, 1, 0.15 + 0.35 * charge))
+			draw_texture_rect(art, art_rect, false, Color(1, 1, 1, 0.15 + 0.35 * charge))
 		else:
 			draw_rect(rect, Color(slash_dash_color, 0.06 + 0.10 * charge))
 			draw_rect(Rect2(0.0, -width * charge * 0.5, length, width * charge), Color(slash_dash_color, 0.20 + 0.25 * charge))
-		draw_rect(rect, Color(slash_dash_color, 0.4 + 0.5 * charge), false, 3.0)
+		if show_outlines:
+			draw_rect(rect, Color(slash_dash_color, 0.4 + 0.5 * charge), false, 3.0)
 	else:
 		var t := 1.0 - _path_effect_left / maxf(effect_time, 0.01)
 		var art := _pick_art(path_texture, path_frames, t)
 		if art != null:
-			draw_texture_rect(art, rect, false, Color(1, 1, 1, clampf((1.0 - t) * 2.0, 0.0, 1.0)))
+			draw_texture_rect(art, art_rect, false, Color(1, 1, 1, clampf((1.0 - t) * 2.0, 0.0, 1.0)))
 		else:
 			draw_rect(rect, Color(slash_dash_color, 0.3 * (1.0 - t)))
 			draw_rect(rect, Color(1, 1, 1, 0.9 * (1.0 - t)), false, 5.0)
@@ -170,10 +211,11 @@ func _draw() -> void:
 		var zone := to_local(_slash_dash_pos)
 		var warn_art := _pick_art(slash_dash_texture, slash_dash_frames, 0.0)
 		if warn_art != null:
-			_draw_circle_art(warn_art, zone, slash_dash_radius * slash_dash_art_scale, 0.15 + 0.35 * charge)
+			_draw_circle_art(warn_art, zone, slash_dash_radius * slash_dash_art_scale, 0.15 + 0.35 * charge, _blast_art_angle(slash_dash_delay - _slash_dash_delay_left))
 		else:
 			draw_circle(zone, slash_dash_radius, Color(slash_dash_color, 0.06 + 0.10 * charge))
 			draw_circle(zone, slash_dash_radius * charge, Color(slash_dash_color, 0.20 + 0.25 * charge))
-		draw_arc(zone, slash_dash_radius, 0.0, TAU, 64, Color(slash_dash_color, 0.4 + 0.5 * charge), 3.0)
+		if show_outlines:
+			draw_arc(zone, slash_dash_radius, 0.0, TAU, 64, Color(slash_dash_color, 0.4 + 0.5 * charge), 3.0)
 	if _effect_left > 0.0:
-		_draw_landing_effect(_slash_dash_pos, slash_dash_radius, slash_dash_color, slash_dash_texture, slash_dash_frames, slash_dash_art_scale)
+		_draw_landing_effect(_slash_dash_pos, slash_dash_radius, slash_dash_color, slash_dash_texture, slash_dash_frames, slash_dash_art_scale, _blast_art_angle(slash_dash_delay + effect_time - _effect_left))

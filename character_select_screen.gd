@@ -38,12 +38,6 @@ func refresh() -> void:
 		_cards.add_child(_make_card(data))
 
 
-# Makes SaveData (and so the shop) use the selected character's upgrades
-func apply_selected_to_save() -> void:
-	if selected != null:
-		SaveData.set_character(selected.id, selected.upgrade_ids, selected.upgrade_overrides)
-
-
 # Starts on the character used last time, or the first one in the roster
 func _pick_initial_character() -> void:
 	selected = CharacterRoster.find_by_id(SaveData.get_last_character())
@@ -51,31 +45,10 @@ func _pick_initial_character() -> void:
 		var roster := CharacterRoster.all()
 		if not roster.is_empty():
 			selected = roster[0]
-	apply_selected_to_save()
 
 
 func _build() -> void:
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.8)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var center := CenterContainer.new()
-	add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var panel := PanelContainer.new()
-	center.add_child(panel)
-
-	var margin := MarginContainer.new()
-	for side in ["left", "top", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 20)
-	panel.add_child(margin)
-
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 14)
-	margin.add_child(box)
+	var box := OverlayBuilder.build(self, 0.8, 14)
 
 	_cards = HBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 14)
@@ -111,7 +84,7 @@ func _build() -> void:
 
 
 func _make_card(data: CharacterData) -> PanelContainer:
-	var is_selected := data == selected
+	var is_selected := data.is_same_as(selected)
 
 	var card := PanelContainer.new()
 	var style := StyleBoxFlat.new()
@@ -152,12 +125,12 @@ func _make_card(data: CharacterData) -> PanelContainer:
 	box.add_child(name_label)
 
 	# Stats, including whatever upgrades have been bought for this character
-	var hp := data.base_max_health + int(SaveData.bonus_for(data.id, "max_health"))
-	var move := data.speed + int(SaveData.bonus_for(data.id, "speed"))
-	var dmg := data.base_attack_damage + int(SaveData.bonus_for(data.id, "damage"))
+	var hp := data.base_max_health + int(SaveData.bonus(data, SaveData.MAX_HEALTH))
+	var move := data.speed + int(SaveData.bonus(data, SaveData.SPEED))
+	var dmg := data.base_attack_damage + int(SaveData.bonus(data, SaveData.DAMAGE))
 	var stats_text := "HP: %d\nSpeed: %d\nDamage: %d" % [hp, move, dmg]
 	if data.regen_interval > 0.0:
-		var interval := data.regen_interval / (1.0 + SaveData.bonus_for(data.id, "regen"))
+		var interval := data.regen_interval / (1.0 + SaveData.bonus(data, SaveData.REGEN))
 		stats_text += "\nRegen: 1 HP / %.1f s" % interval
 	var stats := Label.new()
 	stats.text = stats_text
@@ -177,14 +150,13 @@ func _make_card(data: CharacterData) -> PanelContainer:
 # A left click anywhere on a card selects that character
 func _on_card_gui_input(event: InputEvent, data: CharacterData) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if data != selected:
+		if not data.is_same_as(selected):
 			# Deferred, because picking rebuilds the cards (including the one being clicked)
 			_on_character_picked.call_deferred(data)
 
 
 func _on_character_picked(data: CharacterData) -> void:
 	selected = data
-	apply_selected_to_save()
 	refresh()
 
 

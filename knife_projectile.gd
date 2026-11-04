@@ -27,7 +27,7 @@ func setup(new_velocity: Vector2, new_damage: int, new_max_distance: float, new_
 
 
 func _ready() -> void:
-	add_to_group("knives")  # So the attack can clear them when a run ends
+	add_to_group(Groups.KNIVES)  # So the attack can clear them when a run ends
 	rotation = velocity.angle()
 
 

@@ -35,7 +35,7 @@ var secondary_attack: Attack
 
 
 func _ready():
-	add_to_group("player")  # Mobs look the player up by this group to chase it
+	add_to_group(Groups.PLAYER)  # Mobs look the player up by this group to chase it
 	screen_size = get_viewport_rect().size
 	_register_inputs()
 	if character != null:
@@ -48,7 +48,6 @@ func _ready():
 # Turns this player into the given character: stats, sprites and attack.
 func set_character(data: CharacterData) -> void:
 	character = data
-	SaveData.set_character(data.id, data.upgrade_ids, data.upgrade_overrides)  # Shop levels are saved per character
 	speed = data.speed
 	base_max_health = data.base_max_health
 	base_attack_damage = data.base_attack_damage
@@ -131,10 +130,7 @@ func _process(delta):
 	# Some attacks (the bruiser's dash) move the player themselves, so skip normal movement
 	# and attack input
 	if _attack_controls_movement():
-		# Rooted by an attack (dash, or waiting for its shockwave): show the idle pose if there is one
-		var frames: SpriteFrames = $AnimatedSprite2D.sprite_frames
-		if frames != null and frames.has_animation(&"idle"):
-			_play_animation(&"idle")
+		_update_animation(Vector2.ZERO, true)
 		return
 
 	_handle_attack_input()
@@ -155,17 +151,23 @@ func _process(delta):
 	position += velocity * delta
 	position = position.clamp(Vector2.ZERO, screen_size)
 
-	_update_animation(velocity)
+	_update_animation(velocity, false)
 
 
-# Picks the sprite animation. Moving sideways plays "walk" (flipped to face the way you go),
-# moving only up/down plays "up" (or "walk" if the character has no "up"), and standing
-# still plays "idle". Characters without an "idle" animation just freeze on their current
-# frame.
-func _update_animation(velocity: Vector2) -> void:
+# The one place that decides which sprite animation plays. `velocity` is where the player is
+# moving this frame; `rooted` is true while an attack (a dash) is moving or holding the player.
+#   rooted           -> "idle" if the character has it, otherwise the sprite carries on as it was
+#   moving sideways  -> "walk", flipped to face the way you go
+#   moving up/down   -> "up" (or "walk" if the character has no "up")
+#   standing still   -> "idle" if the character has it, otherwise the sprite freezes
+func _update_animation(velocity: Vector2, rooted: bool) -> void:
 	var sprite: AnimatedSprite2D = $AnimatedSprite2D
 	var frames := sprite.sprite_frames
 	if frames == null:
+		return
+	if rooted:
+		if frames.has_animation(&"idle"):
+			_play_animation(&"idle")
 		return
 	if velocity.length() > 0:
 		sprite.flip_v = false
@@ -209,9 +211,14 @@ func _physics_process(_delta):
 	if not alive or _invuln_left > 0.0:
 		return
 	for body in get_overlapping_bodies():
-		if body.is_in_group("mobs"):
+		if _can_hurt_us(body):
 			take_damage(body.contact_damage)
 			break
+
+
+# Does touching this body hurt us? Mobs do, unless they are paralysed.
+func _can_hurt_us(body: Node) -> bool:
+	return body.is_in_group(Groups.MOBS) and not body.is_paralyzed()
 
 
 func start(pos):
@@ -235,29 +242,22 @@ func start(pos):
 
 # Combines base stats with whatever the player has bought in the shop (for this character).
 func apply_upgrades() -> void:
-	max_health = base_max_health + int(SaveData.bonus("max_health"))
-	move_speed = speed + SaveData.bonus("speed")
+	max_health = base_max_health + int(SaveData.bonus(character, SaveData.MAX_HEALTH))
+	move_speed = speed + SaveData.bonus(character, SaveData.SPEED)
 	# Regeneration: the bonus is a fraction (0.2 = 20% faster), so the wait between heals shrinks
-	regen_interval = base_regen_interval / (1.0 + SaveData.bonus("regen")) if base_regen_interval > 0.0 else 0.0
-	# The attack gets its numbers handed over: damage, reach multiplier, speed multiplier, and
-	# every upgrade's bonus so it can read its own unique ones (e.g. projectile_count)
+	regen_interval = base_regen_interval / (1.0 + SaveData.bonus(character, SaveData.REGEN)) if base_regen_interval > 0.0 else 0.0
+	# The attacks get their numbers handed over: damage, reach multiplier, speed multiplier, and
+	# every upgrade's bonus so they can read their own unique ones (e.g. projectile_count)
 	var bonuses := {}
 	for id in SaveData.UPGRADES:
-		bonuses[id] = SaveData.bonus(id)
-	attack.configure(
-		base_attack_damage + int(SaveData.bonus("damage")),
-		1.0 + SaveData.bonus("attack_range"),
-		1.0 + SaveData.bonus("attack_speed"),
-		bonuses
-	)
-	# The secondary gets the same numbers; it decides which of them it uses
-	if secondary_attack != null:
-		secondary_attack.configure(
-			base_attack_damage + int(SaveData.bonus("damage")),
-			1.0 + SaveData.bonus("attack_range"),
-			1.0 + SaveData.bonus("attack_speed"),
-			bonuses
-		)
+		bonuses[id] = SaveData.bonus(character, id)
+	var attack_damage := base_attack_damage + int(SaveData.bonus(character, SaveData.DAMAGE))
+	var range_mult := 1.0 + SaveData.bonus(character, SaveData.ATTACK_RANGE)
+	var speed_mult := 1.0 + SaveData.bonus(character, SaveData.ATTACK_SPEED)
+	# The secondary gets the same numbers as the primary; it decides which of them it uses
+	for each_attack in [attack, secondary_attack]:
+		if each_attack != null:
+			each_attack.configure(attack_damage, range_mult, speed_mult, bonuses)
 
 
 func take_damage(amount: int = 1) -> void:
@@ -318,5 +318,5 @@ func _update_invulnerability(delta: float) -> void:
 
 # Still connected to body_entered in player.tscn
 func _on_body_entered(body):
-	if body.is_in_group("mobs"):
+	if _can_hurt_us(body):
 		take_damage(body.contact_damage)

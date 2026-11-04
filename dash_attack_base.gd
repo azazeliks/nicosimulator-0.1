@@ -20,11 +20,20 @@ extends Attack
 @export var invulnerable_while_dashing := true
 @export var effect_time := 0.3              # How long the landing effect stays on screen after it lands
 
+@export_group("Dash streak art")
+# The trail drawn behind the player WHILE the dash is happening (from where it began to where the
+# player is now). Draw it as a horizontal strip pointing RIGHT, with the start of the dash on the
+# left: it is stretched to the trail's length, given streak_width, and rotated to the dash direction.
+# Frames win over the texture; an animation plays once across the dash. With no art, a plain line is drawn.
+@export var streak_texture: Texture2D
+@export var streak_frames: SpriteFrames
+@export var streak_width := 90.0             # Thickness of the streak art in pixels
+@export_group("")
+
 # Current-run stats (recalculated in configure)
 var dash_distance := 220.0
 var current_cooldown := 1.4
 
-var _cooldown_left := 0.0
 var _dashing := false
 var _dash_dir := Vector2.RIGHT
 var _dash_elapsed := 0.0
@@ -35,7 +44,7 @@ var _effect_left := 0.0          # Time left on the landing effect
 
 func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, new_bonuses: Dictionary) -> void:
 	super.configure(new_damage, new_range_mult, new_speed_mult, new_bonuses)
-	dash_distance = base_dash_distance * (1.0 + bonus("dash_distance"))
+	dash_distance = base_dash_distance * (1.0 + bonus(SaveData.DASH_DISTANCE))
 	# A subclass sets current_cooldown after this call (it never drops below the time one dash takes)
 
 
@@ -66,7 +75,7 @@ func is_invulnerable() -> bool:
 
 
 func tick(delta: float) -> void:
-	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+	_tick_cooldown(delta)
 	_grace_left = maxf(_grace_left - delta, 0.0)
 	if _effect_left > 0.0:
 		_effect_left = maxf(_effect_left - delta, 0.0)
@@ -82,10 +91,7 @@ func try_attack(target: Vector2) -> bool:
 		return false
 	_cooldown_left = current_cooldown
 
-	var aim := target - global_position
-	if aim.length_squared() < 1.0:
-		aim = Vector2.RIGHT  # Mouse is exactly on the player; pick any direction
-	_dash_dir = aim.normalized()  # Committed: moving the mouse afterwards changes nothing
+	_dash_dir = _aim_direction(target)  # Committed: moving the mouse afterwards changes nothing
 	_effect_left = 0.0
 	_start_sequence()
 	return true
@@ -100,6 +106,13 @@ func _start_sequence() -> void:
 
 # A subclass's own timers. Called every frame, just before the dash moves the player.
 func _tick_phases(_delta: float) -> void:
+	pass
+
+
+# Called every frame the dash moves the player, with the world positions the player moved
+# from and to that frame. Subclasses use it to affect what the dash touches. Runs just before
+# _on_dash_finished() on the last frame.
+func _on_dash_step(_from_world: Vector2, _to_world: Vector2) -> void:
 	pass
 
 
@@ -123,8 +136,10 @@ func _move_dash(delta: float) -> void:
 	_dash_elapsed += step
 	var dash_speed := dash_distance / maxf(dash_time, 0.01)
 	var player := get_parent() as Node2D
-	var new_pos := player.global_position + _dash_dir * dash_speed * step
+	var old_pos := player.global_position
+	var new_pos := old_pos + _dash_dir * dash_speed * step
 	player.global_position = new_pos.clamp(Vector2.ZERO, get_viewport_rect().size)
+	_on_dash_step(old_pos, player.global_position)
 	queue_redraw()
 
 	if _dash_elapsed >= dash_time - 0.0001:
@@ -148,24 +163,36 @@ func _pick_art(tex: Texture2D, frames: SpriteFrames, progress: float) -> Texture
 
 
 # Art drawn centred on a point, stretched to a circle of the given radius
-func _draw_circle_art(art: Texture2D, center: Vector2, radius: float, alpha: float) -> void:
-	draw_texture_rect(art, Rect2(center - Vector2(radius, radius), Vector2(radius, radius) * 2.0), false, Color(1, 1, 1, alpha))
+func _draw_circle_art(art: Texture2D, center: Vector2, radius: float, alpha: float, rotation := 0.0) -> void:
+	draw_set_transform(center, rotation, Vector2.ONE)  # Turns the art around its own centre
+	draw_texture_rect(art, Rect2(-Vector2(radius, radius), Vector2(radius, radius) * 2.0), false, Color(1, 1, 1, alpha))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 # The streak behind the player while dashing
 func _draw_dash_streak(color: Color) -> void:
-	if _dashing:
-		draw_line(to_local(_dash_start), Vector2.ZERO, Color(color, 0.5), 10.0)
+	if not _dashing:
+		return
+	var from := to_local(_dash_start)
+	var progress := clampf(_dash_elapsed / maxf(dash_time, 0.01), 0.0, 1.0)
+	var art := _pick_art(streak_texture, streak_frames, progress)
+	if art == null:
+		draw_line(from, Vector2.ZERO, Color(color, 0.5), 10.0)
+		return
+	var length := from.distance_to(Vector2.ZERO)
+	draw_set_transform(from, (Vector2.ZERO - from).angle(), Vector2.ONE)
+	draw_texture_rect(art, Rect2(0.0, -streak_width * 0.5, length, streak_width), false, Color(1, 1, 1, 0.9))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 # The effect when the landing hits: the art if there is any, otherwise an expanding ring.
 # `center_world` is where it landed (a world position).
-func _draw_landing_effect(center_world: Vector2, radius: float, color: Color, art_texture: Texture2D, art_frames: SpriteFrames, art_scale: float) -> void:
+func _draw_landing_effect(center_world: Vector2, radius: float, color: Color, art_texture: Texture2D, art_frames: SpriteFrames, art_scale: float, art_rotation := 0.0) -> void:
 	var t := 1.0 - _effect_left / maxf(effect_time, 0.01)
 	var center := to_local(center_world)
 	var strike_art := _pick_art(art_texture, art_frames, t)
 	if strike_art != null:
-		_draw_circle_art(strike_art, center, radius * art_scale, clampf((1.0 - t) * 2.0, 0.0, 1.0))
+		_draw_circle_art(strike_art, center, radius * art_scale, clampf((1.0 - t) * 2.0, 0.0, 1.0), art_rotation)
 	else:
 		var r := radius * (0.3 + 0.7 * (1.0 - pow(1.0 - t, 2.0)))  # Grows fast, then settles
 		draw_circle(center, r, Color(color, 0.3 * (1.0 - t)))

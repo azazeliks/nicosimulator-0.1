@@ -76,7 +76,7 @@ static func mobs_in_sector(tree: SceneTree, origin: Vector2, radius: float, aim_
 
 static func _damageable_mobs(tree: SceneTree) -> Array:
 	var result: Array = []
-	for mob in tree.get_nodes_in_group("mobs"):
+	for mob in tree.get_nodes_in_group(Groups.MOBS):
 		if is_instance_valid(mob) and mob.has_method("take_damage"):
 			result.append(mob)
 	return result

@@ -8,7 +8,7 @@
 script = ExtResource("1_data")
 id = "dragon"
 display_name = "Dragon"
-description = "A ranged attacker. Breathes fireballs toward your mouse that explode on contact or after a short fuse, and can be upgraded to fire several at once."
+description = "Shoots fireballs."
 sprite_frames = ExtResource("3_frames")
 sprite_tint = Color(1, 0.92, 0.25, 1)
 speed = 380

@@ -35,8 +35,6 @@ var attack_radius := 240.0
 var current_cooldown := 0.6    # attack_cooldown divided by the attack speed multiplier (never less than the swing time)
 var current_slash_time := 0.2  # How long a swing takes (attack speed doesn't change it)
 
-var _cooldown_left := 0.0
-
 # Slash state
 var _slashing := false
 var _slash_elapsed := 0.0
@@ -94,7 +92,7 @@ func is_busy() -> bool:
 
 func tick(delta: float) -> void:
 	_update_slash(delta)
-	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+	_tick_cooldown(delta)
 
 
 # Starts a slash aimed at the target. Each attack swings the opposite way from the last.
@@ -103,10 +101,7 @@ func try_attack(target: Vector2) -> bool:
 		return false
 	_cooldown_left = current_cooldown
 
-	var aim := target - global_position
-	if aim.length_squared() < 1.0:
-		aim = Vector2.RIGHT  # Target is exactly on the player; pick any direction
-	_slash_aim = aim.angle()  # Locked in: the swing doesn't follow the mouse afterwards
+	_slash_aim = _aim_direction(target).angle()  # Locked in: the swing doesn't follow the mouse afterwards
 
 	_slash_dir = _next_dir
 	_next_dir = -_next_dir

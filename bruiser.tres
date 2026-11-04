@@ -8,7 +8,7 @@
 script = ExtResource("1_data")
 id = "bruiser"
 display_name = "Alistar"
-description = "Tough and heavy. Dashes toward your mouse, safe from damage on the way, then slams down a shockwave that hurts and knocks back everything around it."
+description = "Charges up a headbutt which sends nearby enemies flying, and deals damage."
 sprite_frames = ExtResource("3_frames")
 sprite_tint = Color(0.55, 0.55, 0.6, 1)
 speed = 340

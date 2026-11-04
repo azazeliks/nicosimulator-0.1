@@ -7,11 +7,15 @@ signal died
 @export var hit_radius := 45.0   # Roughly the mob's body radius; every attack adds it to its own reach when testing for hits
 @export var turn_rate := 1.0     # How fast (radians per second) the mob curves toward the player. 0 = straight line, bigger = chases harder
 
+const PARALYSIS_TINT := Color(0.55, 0.75, 1.0)  # Bluish, so you can see which mobs are frozen
+
 var health := 0
 var _dead := false
 var _knock_tween: Tween
 var _base_velocity := Vector2.ZERO  # The mob's normal drifting velocity, restored after a knockback
 var _player: Node2D
+var _paralysis_left := 0.0           # Seconds of paralysis remaining (0 = free to move)
+var _resume_velocity := Vector2.ZERO  # The velocity the mob gets back when the paralysis ends
 
 
 func _ready():
@@ -24,12 +28,18 @@ func _ready():
 # can: not while dying, not during a knockback (the push wins), and not while the player is
 # hidden (before a run, or after game over).
 func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
-	if _dead or turn_rate <= 0.0:
+	if _dead:
+		return
+	if _paralysis_left > 0.0:
+		state.linear_velocity = Vector2.ZERO  # Held still, even if another mob bumps into it
+		state.angular_velocity = 0.0
+		return
+	if turn_rate <= 0.0:
 		return
 	if _knock_tween != null and _knock_tween.is_valid():
 		return
 	if _player == null or not is_instance_valid(_player):
-		_player = get_tree().get_first_node_in_group("player") as Node2D
+		_player = get_tree().get_first_node_in_group(Groups.PLAYER) as Node2D
 	if _player == null or not _player.visible:
 		return
 	var velocity := state.linear_velocity
@@ -40,6 +50,46 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 	var step := clampf(angle_difference(velocity.angle(), to_player.angle()), -max_step, max_step)
 	state.linear_velocity = velocity.rotated(step)
 	state.transform = state.transform.rotated_local(step)  # The sprite turns with the movement
+
+
+# Freezes the mob in place for `duration` seconds: it stops moving, stops steering and can't be
+# knocked back, and its animation pauses (and it turns blue). It then carries on exactly as it was
+# going. Paralysing a mob that is already paralysed only extends it (the longer time wins).
+func paralyze(duration: float) -> void:
+	if _dead or duration <= 0.0:
+		return
+	if _paralysis_left <= 0.0:
+		if _knock_tween != null and _knock_tween.is_valid():
+			_knock_tween.kill()
+			_resume_velocity = _base_velocity  # Cut a knockback short: it goes back to its normal drift
+		else:
+			_resume_velocity = linear_velocity
+		linear_velocity = Vector2.ZERO
+		$AnimatedSprite2D.pause()
+		$AnimatedSprite2D.self_modulate = PARALYSIS_TINT
+	_paralysis_left = maxf(_paralysis_left, duration)
+
+
+func is_paralyzed() -> bool:
+	return _paralysis_left > 0.0
+
+
+func _physics_process(delta: float) -> void:
+	if _paralysis_left <= 0.0:
+		return
+	_paralysis_left -= delta
+	if _paralysis_left <= 0.0:
+		_end_paralysis()
+
+
+func _end_paralysis() -> void:
+	_paralysis_left = 0.0
+	if _dead:
+		return
+	linear_velocity = _resume_velocity
+	sleeping = false
+	$AnimatedSprite2D.play()  # Carries on with the animation it was paused on
+	$AnimatedSprite2D.self_modulate = Color.WHITE
 
 
 func take_damage(amount: int = 1) -> void:
@@ -57,7 +107,7 @@ func take_damage(amount: int = 1) -> void:
 # normal velocity over `duration` seconds. A second knockback while one is running
 # restarts the push but still returns to the original drifting velocity.
 func knockback(direction: Vector2, speed: float, duration: float) -> void:
-	if _dead:
+	if _dead or _paralysis_left > 0.0:  # A paralysed mob can't be pushed
 		return
 	if _knock_tween != null and _knock_tween.is_valid():
 		_knock_tween.kill()  # Keep _base_velocity from the first knockback
@@ -76,7 +126,8 @@ func _flash() -> void:
 
 func _die() -> void:
 	_dead = true
-	remove_from_group("mobs")  # Can't be hit again or hurt the player while fading out
+	_paralysis_left = 0.0
+	remove_from_group(Groups.MOBS)  # Can't be hit again or hurt the player while fading out
 	$CollisionShape2D.set_deferred("disabled", true)
 	died.emit()
 	var tween := create_tween().set_parallel(true)

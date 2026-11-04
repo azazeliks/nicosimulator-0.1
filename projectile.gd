@@ -28,7 +28,7 @@ func setup(new_velocity: Vector2, new_fuse: float, new_damage: int, new_radius: 
 
 
 func _ready() -> void:
-	add_to_group("projectiles")  # So the attack can clear them when a run ends
+	add_to_group(Groups.PROJECTILES)  # So the attack can clear them when a run ends
 
 
 func _process(delta: float) -> void:

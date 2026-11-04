@@ -35,3 +35,9 @@ extends Resource
 # instead of "Slash Range". Format: { "upgrade id": { "name": "...", "desc": "..." } }
 # Anything you leave out keeps the default text from SaveData.UPGRADES.
 @export var upgrade_overrides: Dictionary = {}
+
+
+# Is `other` the same character as this one? Compares ids, so it stays correct even if Godot
+# hands out a second copy of the same .tres. Use this instead of `==` between characters.
+func is_same_as(other: CharacterData) -> bool:
+	return other != null and other.id == id

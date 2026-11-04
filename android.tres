@@ -9,7 +9,7 @@
 script = ExtResource("1_data")
 id = "android"
 display_name = "Seven"
-description = "Slow but powerful. Its huge, heavy slash hits for double damage, and it slowly regenerates lost HP over time. Right-click dashes a long way, then a big blast lands where you stopped."
+description = "Regenerates lost hp over time and has a stronger, but slower swing. Right-click instantly dashes and freeze all nearby enemies, then performs a wide, devastating slash."
 sprite_frames = ExtResource("4_5hfcw")
 sprite_tint = Color(1, 1, 1, 1)
 speed = 360

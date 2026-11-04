@@ -10,7 +10,11 @@ extends Node2D
 var damage := 1
 var range_mult := 1.0  # Multiplies the attack's reach ("attack_range" upgrade)
 var speed_mult := 1.0  # Divides the cooldown ("attack_speed" upgrade)
-var bonuses := {}      # Every shop upgrade's current bonus, by upgrade id. Read it with bonus("id")
+var bonuses := {}      # Every shop upgrade's current bonus, by upgrade id. Read it with bonus(SaveData.SOME_UPGRADE)
+
+# Seconds until the attack can be used again. Subclasses set it when they fire, reset it in
+# start_run(), and count it down by calling _tick_cooldown(delta) from tick().
+var _cooldown_left := 0.0
 
 
 # Called at the start of every run, before start_run().
@@ -21,10 +25,15 @@ func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, ne
 	bonuses = new_bonuses
 
 
-# Bonus of a shop upgrade at its current level (0 if the character doesn't have it).
-# This is how an attack reads its own unique upgrades, e.g. bonus("projectile_count").
+# Bonus of a shop upgrade at its current level (0 if the character hasn't bought any).
+# This is how an attack reads its own unique upgrades, e.g. bonus(SaveData.PROJECTILE_COUNT).
+# The player hands over EVERY upgrade (see Player.apply_upgrades), so an id that is missing
+# here can only be a typo, and we say so instead of quietly returning 0.
 func bonus(upgrade_id: String) -> float:
-	return float(bonuses.get(upgrade_id, 0.0))
+	if not bonuses.has(upgrade_id):
+		push_warning("Attack.bonus(): unknown upgrade id '%s' (typo? use the names in SaveData)." % upgrade_id)
+		return 0.0
+	return float(bonuses[upgrade_id])
 
 
 # Resets per-run state (cooldowns, swing direction, ...).
@@ -76,3 +85,19 @@ func can_start_while(_primary: Attack) -> bool:
 # Returns true if the attack actually started (false while on cooldown).
 func try_attack(_target: Vector2) -> bool:
 	return false
+
+
+# ------------------------------------------------------------ for subclasses
+
+# Counts the cooldown down. Call it from tick().
+func _tick_cooldown(delta: float) -> void:
+	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+
+
+# The direction (a unit vector) from this attack to the target. If the target is exactly on
+# the player there is no direction, so it picks "right" instead of dividing by zero.
+func _aim_direction(target: Vector2) -> Vector2:
+	var aim := target - global_position
+	if aim.length_squared() < 1.0:
+		return Vector2.RIGHT
+	return aim.normalized()

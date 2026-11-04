@@ -2,14 +2,14 @@
 
 [ext_resource type="Script" uid="uid://b7deb4dtut0w8" path="res://character_data.gd" id="1_data"]
 [ext_resource type="PackedScene" path="res://cat_slash_attack.tscn" id="2_attack"]
-[ext_resource type="PackedScene" path="res://cat_knife_attack.tscn" id="4_secondary"]
 [ext_resource type="SpriteFrames" uid="uid://nxt0qe4p2idb" path="res://cat_frames.tres" id="3_frames"]
+[ext_resource type="PackedScene" path="res://cat_knife_attack.tscn" id="4_secondary"]
 
 [resource]
 script = ExtResource("1_data")
 id = "cat"
 display_name = "Nico"
-description = "A balanced all-rounder. Sweeps a claw slash across a wide arc toward your mouse, swinging left and right in turn. Right-click throws a fast, light knife."
+description = "Faster than other characters, but has low damage and range. Primary slashes a short distance in front of her, right click throws a small throwing knife."
 sprite_frames = ExtResource("3_frames")
 sprite_tint = Color(1, 1, 1, 1)
 speed = 400

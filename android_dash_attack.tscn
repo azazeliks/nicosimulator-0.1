@@ -1,6 +1,66 @@
-[gd_scene load_steps=2 format=3 uid="uid://dlblpq7lug6uv"]
+[gd_scene load_steps=15 format=3 uid="uid://dlblpq7lug6uv"]
 
 [ext_resource type="Script" uid="uid://dr08oluhw61pu" path="res://delayed_dash_attack.gd" id="1_dash"]
+[ext_resource type="Texture2D" uid="uid://cvep0bb0whpti" path="res://delayed_slash1.png" id="2_r8c8c"]
+[ext_resource type="Texture2D" uid="uid://d2657otgtr6vj" path="res://dash_trail_3.png" id="2_rwchu"]
+[ext_resource type="Texture2D" uid="uid://dlgw5v6o0gj4a" path="res://delayed_slash2.png" id="3_rwchu"]
+[ext_resource type="Texture2D" uid="uid://c8ch0ogkyujev" path="res://delayed_slash3.png" id="4_mqrgf"]
+[ext_resource type="Texture2D" uid="uid://dgb6i0i5aafls" path="res://dash_trail_1.png" id="6_7ksia"]
+[ext_resource type="Texture2D" uid="uid://bqhesa7yq4a6c" path="res://dash_trail_2.png" id="7_tm415"]
+[ext_resource type="Texture2D" uid="uid://ceju2ec3qr6kd" path="res://dash_trail_4.png" id="8_u0ydr"]
+[ext_resource type="Texture2D" uid="uid://b23vcp6prm34f" path="res://dash_trail_5.png" id="9_khpps"]
+[ext_resource type="Texture2D" uid="uid://dcecouotn5g04" path="res://delayed_slash4.png" id="10_khpps"]
+[ext_resource type="Texture2D" uid="uid://h2lb34bmmowd" path="res://delayed_slash5.png" id="11_kg47g"]
+[ext_resource type="Texture2D" uid="uid://j47gsi15n3tx" path="res://delayed_slash6.png" id="12_1ytks"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_tm415"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("6_7ksia")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_tm415")
+}, {
+"duration": 1.0,
+"texture": ExtResource("2_rwchu")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_u0ydr")
+}, {
+"duration": 1.0,
+"texture": ExtResource("9_khpps")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_u3gen"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_r8c8c")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_rwchu")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_mqrgf")
+}, {
+"duration": 1.0,
+"texture": ExtResource("10_khpps")
+}, {
+"duration": 1.0,
+"texture": ExtResource("11_kg47g")
+}, {
+"duration": 1.0,
+"texture": ExtResource("12_1ytks")
+}],
+"loop": true,
+"name": &"default",
+"speed": 5.0
+}]
 
 [node name="DashAttack" type="Node2D"]
 script = ExtResource("1_dash")
@@ -9,6 +69,13 @@ slash_dash_delay = 0.5
 slash_dash_color = Color(1, 0.35, 0.35, 1)
 path_delay = 0.45
 path_damage_fraction = 0.5
+path_frames = SubResource("SpriteFrames_tm415")
+slash_dash_frames = SubResource("SpriteFrames_u3gen")
+slash_dash_art_scale = 1.15
+blast_art_spin_time = 0.2
+path_art_width_scale = 6.0
+show_outlines = false
 attack_cooldown = 3.0
 base_dash_distance = 420.0
 dash_time = 0.1
+streak_texture = ExtResource("9_khpps")

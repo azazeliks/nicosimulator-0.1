@@ -40,7 +40,7 @@ var _slam_pos := Vector2.ZERO    # Where the shockwave happened (world position)
 func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, new_bonuses: Dictionary) -> void:
 	super.configure(new_damage, new_range_mult, new_speed_mult, new_bonuses)
 	slam_radius = base_slam_radius * range_mult
-	knockback_speed = base_knockback_speed * (1.0 + bonus("knockback"))
+	knockback_speed = base_knockback_speed * (1.0 + bonus(SaveData.KNOCKBACK))
 	# The delay never drops below wind-up + dash, so one dash finishes before the next starts
 	current_cooldown = maxf(attack_cooldown / speed_mult, windup_time + dash_time)
 

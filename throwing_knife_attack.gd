@@ -22,8 +22,6 @@ var knife_range := 750.0
 var knife_damage := 1
 var current_cooldown := 1.05
 
-var _cooldown_left := 0.0
-
 
 func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, new_bonuses: Dictionary) -> void:
 	super.configure(new_damage, new_range_mult, new_speed_mult, new_bonuses)
@@ -39,11 +37,11 @@ func start_run() -> void:
 
 # Removes any knives still flying (they live in the scene, not under the player)
 func cancel() -> void:
-	get_tree().call_group("knives", "queue_free")
+	get_tree().call_group(Groups.KNIVES, "queue_free")
 
 
 func tick(delta: float) -> void:
-	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+	_tick_cooldown(delta)
 
 
 # Nico can't throw while his slash is in progress
@@ -56,10 +54,7 @@ func try_attack(target: Vector2) -> bool:
 		return false
 	_cooldown_left = current_cooldown
 
-	var aim := target - global_position
-	if aim.length_squared() < 1.0:
-		aim = Vector2.RIGHT  # Mouse is exactly on the player; pick any direction
-	var direction := aim.normalized()
+	var direction := _aim_direction(target)
 
 	var knife := KnifeProjectile.new()
 	knife.setup(direction * knife_speed, knife_damage, knife_range, knife_body_radius, knife_length, knife_color)

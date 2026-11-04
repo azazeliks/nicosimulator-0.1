@@ -1,4 +1,5 @@
 # Cat Simulator
+(The title screen currently says "Real Nico Simulator 2026": the TITLE_TEXT constant at the top of hud.gd.)
 
 ## What the game does now
 - Press START, pick one of 4 characters (shown in the order Nico, Seven, Alistar, Dragon) on the selection screen, press PLAY.
@@ -19,12 +20,12 @@
 ## Characters
 Stats are the level-0 values (before shop upgrades). Edit them in each character's .tres file.
 
-| Character | HP | Speed | Damage | Attack                                  | Extra            |
-|-----------|----|-------|--------|-----------------------------------------|------------------|
-| Nico (id cat) | 3  | 400   | 1      | Slash (0.6s cooldown)       | none             |
-| Alistar (id bruiser) | 5  | 340   | 2      | Dash + shockwave (1.4s cooldown)        | grey tint        |
-| Seven (id android) | 3  | 360   | 2      | Big slash (0.8s cooldown)               | regen 1 HP / 8s, red tint |
-| Dragon    | 3  | 380   | 1      | Exploding fireballs (0.9s cooldown)     | yellow tint      |
+| Character | HP | Speed | Damage | Left click (main attack)            | Right click (secondary)                  | Extra                      |
+|-----------|----|-------|--------|-------------------------------------|------------------------------------------|----------------------------|
+| Nico (id cat) | 3  | 400   | 1      | Slash (0.6s cooldown)               | Throwing knife (1.05s cooldown)          | none (original sprite)     |
+| Seven (id android) | 3  | 360   | 2      | Big slash (0.8s cooldown)           | Instant dash + delayed blast (3s cooldown) | regen 1 HP / 8s            |
+| Alistar (id bruiser) | 5  | 340   | 2      | Dash + shockwave (1.4s cooldown)    | none yet                                 | grey tint placeholder      |
+| Dragon    | 3  | 380   | 1      | Exploding fireballs (0.9s cooldown) | none yet                                 | yellow tint placeholder    |
 
 - Nico (id: cat): balanced. Slashes a cone toward the mouse. Each swing goes the opposite way to the last; the first swing of a run is left to right. Mobs are hit as the blade passes over them, once each per swing. Reach 240, arc 100 degrees, swing 0.3s.
 - Alistar (id: bruiser): on press there is a 0.3s wind-up: the direction is locked toward the mouse, the player walks at 35% speed and a warning line shows the path. Then he dashes a fixed 220 px in 0.18s (the distance does not depend on how far the mouse is). Invulnerable during the dash and for 0.3s after. At the end of the dash a shockwave (radius 170) damages every mob in range and knocks them back.
@@ -35,7 +36,7 @@ Stats are the level-0 values (before shop upgrades). Edit them in each character
 - Optional, set per character in the .tres (secondary_attack_scene). Characters without one simply ignore right click. Currently: Nico and Seven.
 - Right click works whether or not left click is held or the main attack is mid-swing, unless that secondary says otherwise (the knife does).
 - Nico's throwing knife: throws a small, fast, low-damage knife (half of Nico's damage, minimum 1) toward the mouse. It hits the first mob it touches and is used up; range 750 px. It fires about every 1.05s (roughly a third of the original rate) and CANNOT be thrown while Nico's slash is mid-swing.
-- Seven's dash: instant (no wind-up). He dashes toward the mouse and is invulnerable during the dash. A moment after the dash ends, a shockwave lands at the spot where the dash ended (shown as a danger zone on the ground), damaging mobs in range without knocking them back. He is locked in place (no moving or attacking) from the dash until the shockwave lands, however long that delay is set to. It can be used during his slash.
+- Seven's dash: instant (no wind-up). He dashes toward the mouse and is invulnerable during the dash. A moment after the dash ends, a shockwave lands at the spot where the dash ended (shown as a danger zone on the ground), damaging mobs in range without knocking them back. He is locked in place (no moving or attacking) from the dash until the shockwave lands, however long that delay is set to. It can be used during his slash. Mobs the dash passes through are PARALYSED (frozen in place, tinted blue), and so is every mob inside the blast's range when the dash ends. They stay frozen until the blast has landed plus 0.3s (paralysis_extra_time), then carry on as they were. Mobs that enter the blast zone later are not frozen. Paralysed mobs can't be knocked back and do no contact damage to the player (they hurt again once the paralysis ends). The blast art is turned so the top of the image points the way the dash went (rotate_blast_art), and spins clockwise into that position over 0.5s after the dash ends (blast_art_spin_degrees = 180, blast_art_spin_time = 0.5; set the degrees to 0 for no spin).
 - Secondaries share the shop upgrades with the main attack (damage, range, attack speed, etc.); there is no separate upgrade line for them yet.
 
 ## Shop upgrades
@@ -69,8 +70,8 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - Fireballs and shockwaves are drawn in code (placeholder circles/rings); no art files needed.
 
 ## Scripts
-- save_data.gd: class SaveData. Coins, per-character upgrade levels, last picked character. Upgrade definitions live in its UPGRADES constant. Saved to user://save.cfg. reset() wipes everything.
-- character_data.gd: class CharacterData (a Resource). One .tres per character.
+- save_data.gd: class SaveData. Coins, per-character upgrade levels, last picked character. Upgrade definitions live in its UPGRADES constant, and each upgrade id is also a constant (SaveData.MAX_HEALTH, DAMAGE, ATTACK_RANGE, ATTACK_SPEED, SPEED, REGEN, PROJECTILE_COUNT, KNOCKBACK, DASH_DISTANCE). There is no "current character": every function (get_level, bonus, get_cost, is_maxed, try_buy, ...) takes the character as its first argument. Saved to user://save.cfg; a failed save logs a red error. reset() wipes everything.
+- character_data.gd: class CharacterData (a Resource). One .tres per character. Compare two characters with a.is_same_as(b) (by id), never with ==.
 - character_roster.gd: class CharacterRoster. The list of character .tres paths, in selection-screen order.
 - cat.tres, bruiser.tres, android.tres, dragon.tres: the four characters.
 - cat_frames.tres: shared sprite frames (all four characters use them for now).
@@ -83,23 +84,33 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - mob_hits.gd: class MobHits. The shared "which mobs does this attack touch" tests (circle, thick line, first-on-line, pie slice) used by every attack.
 - throwing_knife_attack.gd, knife_projectile.gd (+ cat_knife_attack.tscn): Nico's thrown knife (secondary).
 - player.gd: movement, health, invulnerability, regen, attack input (left and right click), becomes a character via set_character().
-- mob.gd: health, take_damage(), knockback(), died signal, steering toward the player (_integrate_forces).
+- mob.gd: health, take_damage(), knockback(), paralyze(duration), died signal, steering toward the player (_integrate_forces).
 - main.gd: kill score, score -> coins, mob health scaling, starts a run with the chosen character.
 - hud.gd: health bar, coins, game over results, title buttons, reset button. Creates the two screens below and connects them.
 - shop_screen.gd: class ShopScreen. The upgrade shop overlay, built in code.
 - character_select_screen.gd: class CharacterSelectScreen. The character cards screen (Upgrades / Play / Back), built in code.
+- groups.gd: class Groups. The node group names as constants (Groups.MOBS, PLAYER, PROJECTILES, KNIVES). Use these instead of typing the text. The one place that stays text is the group list saved inside mob.tscn ("mobs").
+- overlay_builder.gd: class OverlayBuilder. Builds the dark backdrop + centred column shared by the shop, selection screen and pause menu.
+- smoke_test.gd + smoke_test.tscn: the automatic self-check (see "Testing" below).
 - pause_menu.gd: class PauseMenu. The Escape pause screen (Resume / Exit to main menu), built in code and created by Main.
 
 ## How to add things
 - New character: make a .tres from CharacterData (copy an existing one), give it a unique id, stats, description, an attack scene and upgrade_ids, then add its path to character_roster.gd.
 - New attack type: make a script that extends Attack (see attack.gd), make a small .tscn whose root uses it, and point a character's attack_scene at it.
 - Secondary attack: same as above, but point the character's secondary_attack_scene at it. To stop it being used while the main attack is busy, override can_start_while(primary) and check primary.is_busy().
-- New upgrade: add an entry to SaveData.UPGRADES, read it with bonus("id") in the attack or in player.gd apply_upgrades(), then add the id to upgrade_ids on the characters that should sell it.
+- New upgrade: add an entry to SaveData.UPGRADES (and a constant for its id at the top of save_data.gd), then read it with bonus(SaveData.YOUR_ID) in the attack (Attack.bonus) or in player.gd apply_upgrades(), then add the id to upgrade_ids on the characters that should sell it.
+
+## Testing
+- Open smoke_test.tscn and press F6 (Run Current Scene). About 10 seconds. It loads all four characters, plays their attacks next to a test mob, builds the shop, selection screen, pause menu and HUD, and prints "ALL n CHECKS PASSED" (254 at the time of writing) or a list of PROBLEMS in the Output panel. It only reads the save file, never writes it.
+- Red or yellow lines in Output / Debugger > Errors while it runs also count as problems, even if it says PASSED.
+- Run it after any change that touches more than one file, and before committing. When something breaks, ask for a check to be added to it so that bug can't come back unnoticed.
+- It cannot judge how things look or feel (art, layout, balance, mouse input). That is still done by playing.
 
 ## Tuning knobs
-- main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP
+- main.gd: SCORE_PER_COIN, KILL_SCORE, BASE_MOB_HEALTH, SCORE_PER_EXTRA_MOB_HP, EXIT_AWARDS_COINS
+- hud.gd: TITLE_TEXT (the title screen text)
 - Each character .tres: speed, base_max_health, base_attack_damage, regen_interval, sprite_tint, upgrade_ids, upgrade_overrides, description
-- Attack scenes (select the root node, Inspector): slash (base_attack_radius, attack_arc_degrees, attack_cooldown, slash_time, slash art settings), projectile (attack_cooldown, projectile_speed, fuse_time, base_explosion_radius, base_projectile_count, spread_degrees), dash for Alistar (attack_cooldown, base_dash_distance, dash_time, invulnerable_while_dashing, effect_time, windup_time, windup_move_multiplier, base_slam_radius, base_knockback_speed, knockback_time, post_slam_invulnerability, slam_color), delayed dash for Seven (attack_cooldown, base_dash_distance, dash_time, base_slash_dash_radius, slash_dash_delay, lock_until_slash_dash, post_slash_dash_invulnerability, slash_dash_color, path_delay, path_width, path_damage_fraction), knife (attack_cooldown, knife_speed, base_knife_range, damage_fraction, knife_length, knife_body_radius, knife_color, muzzle_distance)
+- Attack scenes (select the root node, Inspector): slash (base_attack_radius, attack_arc_degrees, attack_cooldown, slash_time, slash art settings), projectile (attack_cooldown, projectile_speed, fuse_time, base_explosion_radius, base_projectile_count, spread_degrees), dash for Alistar (attack_cooldown, base_dash_distance, dash_time, invulnerable_while_dashing, effect_time, windup_time, windup_move_multiplier, base_slam_radius, base_knockback_speed, knockback_time, post_slam_invulnerability, slam_color), delayed dash for Seven (paralysis_enabled, paralysis_extra_time, rotate_blast_art, blast_art_spin_degrees, blast_art_spin_time, streak_width, attack_cooldown, base_dash_distance, dash_time, base_slash_dash_radius, slash_dash_delay, lock_until_slash_dash, post_slash_dash_invulnerability, slash_dash_color, path_delay, path_width, path_damage_fraction, path_art_width_scale, show_outlines), knife (attack_cooldown, knife_speed, base_knife_range, damage_fraction, knife_length, knife_body_radius, knife_color, muzzle_distance)
 - player.gd (exported): invulnerability_time
 - mob.gd (exported): max_health, contact_damage, hit_radius, turn_rate
 - save_data.gd UPGRADES: costs, growth, max levels, bonus per level
@@ -117,6 +128,11 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - Debug Draw Attack shows the real hit area in red (faint, only during a swing).
 - With no art assigned, a white placeholder trail is drawn.
 - Defaults are set for slash.png: pivot (482, 1064), angle -80, length 850, lead 54.
+
+## Dash art (Alistar's and Seven's dashes)
+- Open the dash attack scene (bruiser_dash_attack.tscn or android_dash_attack.tscn), select the root node and look in the Inspector.
+- "Dash streak art" (both dashes): the trail behind the player while the dash is happening. Streak Texture or Streak Frames, plus Streak Width. Draw it as a horizontal strip pointing right, start of the dash on the left; it is stretched to the trail's length and rotated to the dash direction. Frames win over the texture and play once across the dash. With nothing assigned, a plain line is drawn.
+- "Art" group (Seven only): Path Texture / Path Frames (the strip along the path the dash crossed, after it ends; Path Art Width Scale makes the art wider or thinner than the damaging path without changing the hitbox) and Slash Dash Texture / Frames / Art Scale (the blast where the dash ended; draw it centred with its top facing up, it is stretched to the blast's diameter and, with Rotate Blast Art on, turned so its top points the way the dash went). Show Outlines turns off the thin hitbox outlines drawn around the path and blast while they charge.
 
 ## Debugging hitboxes
 - Collision shapes (player/mob hurtboxes, used for contact damage): Godot editor > Debug menu > Visible Collision Shapes, then run the game.
@@ -136,12 +152,14 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - Optional playable build: Project > Export, zip the exe + .pck, attach to the release.
 
 ## Known issues / not yet checked
-- The character selection screen was the last thing built. Check it was playtested: card layout, click-to-select, Play/Back/Upgrades buttons, last character remembered after restarting the game.
-- Balance has not been tuned: character stats, attack numbers and upgrade costs are first guesses. In particular the bruiser (5 HP, invulnerable dash) may be too strong, and the dragon's Extra Projectiles (60/120/240 coins) may be too cheap or too pricey.
-- Secondary attacks (Nico's knife, Seven's dash) have not been playtested: check right click while holding left click, the knife being blocked during a slash, and Seven's instant dash and delayed shockwave. Values in the attack .tscn files override script defaults, so check the Inspector if a tweak doesn't seem to apply.
-- The bruiser's Knockback and Dash Distance upgrades, the android's Regeneration upgrade and the dragon's Extra Projectiles upgrade need checking at higher levels.
+- Automatic checks pass: the smoke test (254 checks) and a headless run of the main scene gave no errors or warnings (checked with placeholder art, since the images are not in the shared zip). Still to be checked by hand, because the smoke test can't see them: how everything looks, the mouse input, and how it feels to play.
+- The character selection screen needs a playtest: card layout, click-to-select, Play/Back/Upgrades buttons, last character remembered after restarting the game.
+- Balance has not been tuned: character stats, attack numbers and upgrade costs are first guesses. In particular Alistar (5 HP, invulnerable dash) may be too strong, and the dragon's Extra Projectiles (60/120/240 coins) may be too cheap or too pricey.
+- Secondary attacks (Nico's knife, Seven's dash) need a feel test: right click while holding left click, the knife being blocked during a slash, and Seven's instant dash and delayed blast. Values in the attack .tscn files override script defaults, so check the Inspector if a tweak doesn't seem to apply.
+- Alistar's Knockback and Dash Distance upgrades, Seven's Regeneration upgrade and the dragon's Extra Projectiles upgrade need checking at higher levels.
 - The selection screen assumes four cards fit side by side on screen. If more characters are added, the row may need scrolling or a second row.
 - Fireballs that fly off screen only disappear when their fuse runs out (1s), which is fine at the current speed but worth remembering if the fuse or speed is raised a lot.
+- start_button.gd (an empty, unused stub) is still in the project folder. Nothing uses it: delete it in the FileSystem dock.
 
 ## Features I'd like to add
 - [x] Health system for player and mobs
@@ -152,6 +170,9 @@ Each character lists which upgrades it can buy (upgrade_ids in its .tres). The s
 - [x] Hold to keep attacking
 - [x] Secondary attack on right click (Nico: throwing knife, Seven: instant dash)
 - [x] Character selection, with unique mechanics / stats for each character
+- [x] Pause menu (Escape: Resume / Exit to main menu)
+- [x] Code cleanup (shared hit tests, split dash and HUD scripts) and an automatic smoke test
 - [ ] Real art for the bruiser, android and dragon (they are tinted cat placeholders)
 - [ ] Real art for fireballs and the bruiser's shockwave (currently drawn circles)
 - [ ] Balance pass on characters and upgrade costs
+- [ ] Secondary attacks for Alistar and the dragon (optional: a separate upgrade line for secondaries, a cooldown indicator in the HUD)

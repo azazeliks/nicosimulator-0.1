@@ -24,34 +24,34 @@ func _ready():
 
 
 func game_over():
-	game_running = false
-	_pause_menu.run_active = false
-	$ScoreTimer.stop()
-	$MobTimer.stop()
-	get_tree().call_group("mobs", "queue_free")
-
-	# Convert this run's score into permanent coins
-	var earned := floori(score / float(SCORE_PER_COIN))
-	SaveData.add_coins(earned)
+	# The player died: always convert this run's score into permanent coins
+	var earned := _end_run(true)
 	$HUD.show_game_over(score, earned, SaveData.get_coins())
 
 
 # Called from the pause menu's Exit button: abandons the run and returns to the title screen.
 func exit_to_menu() -> void:
-	get_tree().paused = false
+	var earned := _end_run(EXIT_AWARDS_COINS)
+	$HUD.show_title(score, earned, SaveData.get_coins())
+
+
+# Everything the two ways of ending a run have in common: stops the run's timers, clears the
+# mobs, and (if award_coins) converts the score into coins. Returns the coins earned.
+func _end_run(award_coins: bool) -> int:
+	get_tree().paused = false  # Exit can be pressed while paused
 	game_running = false
 	_pause_menu.run_active = false
-	$StartTimer.stop()  # In case Exit is pressed during "Get Ready!"
+	$StartTimer.stop()  # In case the run ends during "Get Ready!"
 	$ScoreTimer.stop()
 	$MobTimer.stop()
-	get_tree().call_group("mobs", "queue_free")
-	$Player.stop_run()
+	get_tree().call_group(Groups.MOBS, "queue_free")
+	$Player.stop_run()  # Harmless if the player already died: it only stops attacks and hides
 
 	var earned := 0
-	if EXIT_AWARDS_COINS:
+	if award_coins:
 		earned = floori(score / float(SCORE_PER_COIN))
 		SaveData.add_coins(earned)
-	$HUD.show_title(score, earned, SaveData.get_coins())
+	return earned
 
 
 func new_game(character: CharacterData = null):
@@ -64,7 +64,7 @@ func new_game(character: CharacterData = null):
 	kills = 0
 	$MobTimer.stop()
 	$ScoreTimer.stop()
-	get_tree().call_group("mobs", "queue_free")
+	get_tree().call_group(Groups.MOBS, "queue_free")
 	$Player.start($StartPosition.position)
 	$StartTimer.start()
 	$HUD.update_score(score)

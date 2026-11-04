@@ -21,14 +21,12 @@ var explosion_radius := 130.0
 var current_cooldown := 0.9
 var projectile_count := 1
 
-var _cooldown_left := 0.0
-
 
 func configure(new_damage: int, new_range_mult: float, new_speed_mult: float, new_bonuses: Dictionary) -> void:
 	super.configure(new_damage, new_range_mult, new_speed_mult, new_bonuses)
 	explosion_radius = base_explosion_radius * range_mult
 	current_cooldown = attack_cooldown / speed_mult
-	projectile_count = base_projectile_count + int(bonus("projectile_count"))
+	projectile_count = base_projectile_count + int(bonus(SaveData.PROJECTILE_COUNT))
 
 
 func start_run() -> void:
@@ -38,11 +36,11 @@ func start_run() -> void:
 
 # Removes any projectiles still flying (they live in the scene, not under the player)
 func cancel() -> void:
-	get_tree().call_group("projectiles", "queue_free")
+	get_tree().call_group(Groups.PROJECTILES, "queue_free")
 
 
 func tick(delta: float) -> void:
-	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
+	_tick_cooldown(delta)
 
 
 func try_attack(target: Vector2) -> bool:
@@ -50,10 +48,7 @@ func try_attack(target: Vector2) -> bool:
 		return false
 	_cooldown_left = current_cooldown
 
-	var aim := target - global_position
-	if aim.length_squared() < 1.0:
-		aim = Vector2.RIGHT  # Mouse is exactly on the player; pick any direction
-	var base_angle := aim.angle()
+	var base_angle := _aim_direction(target).angle()
 	var spread := deg_to_rad(spread_degrees)
 
 	# Fan the projectiles out around the aim direction

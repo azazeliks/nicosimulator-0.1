@@ -4,6 +4,7 @@ extends CanvasLayer
 signal start_game(character: CharacterData)  # Sent when PLAY is pressed on the character screen
 
 const HEALTH_BAR_SIZE := Vector2(400, 44)  # Size of the in-game health bar (top left)
+const TITLE_TEXT := "Real Nico Simulator 2026"  # Shown on the title screen
 
 # These are built in code (see _ready), so hud.tscn doesn't need any changes.
 var _health_bar: ProgressBar
@@ -42,7 +43,7 @@ func show_game_over(final_score: int = 0, earned: int = 0, total_coins: int = 0)
 	_result_label.show()
 	show_message("Ow")
 	await $MessageTimer.timeout
-	$MessageLabel.text = "Real Nico Simulator 2026"
+	$MessageLabel.text = TITLE_TEXT
 	$MessageLabel.show()
 	await get_tree().create_timer(1.0).timeout
 	$StartButton.show()
@@ -58,7 +59,7 @@ func show_title(final_score: int = 0, earned: int = 0, total_coins: int = 0) -> 
 	_result_label.show()
 	_health_bar.hide()
 	$MessageTimer.stop()  # A pending timer would hide the title text again (e.g. after "Get Ready!")
-	$MessageLabel.text = "Real Nico Simulator 2026"
+	$MessageLabel.text = TITLE_TEXT
 	$MessageLabel.show()
 	$StartButton.show()
 	_shop_button.show()
@@ -210,7 +211,6 @@ func _open_shop() -> void:
 
 func _on_shop_closed() -> void:
 	$StartButton.disabled = false
-	_select_screen.apply_selected_to_save()  # Back to the character that will be played
 	if _select_screen.visible:
 		_select_screen.refresh()  # Stats on the cards may have changed after buying upgrades
 

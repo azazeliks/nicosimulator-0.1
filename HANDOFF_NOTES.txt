@@ -22,8 +22,8 @@ All six planned steps are DONE:
 4. Dragon added (exploding fireballs, expensive Extra Projectiles upgrade). Per-character wording for upgrades.
 5. Bruiser added (dash that ends in a knockback shockwave).
 6. Selection screen built in code (hud.gd) with stats and descriptions. Last pick is saved.
-The user confirmed steps 1 to 5 work in the editor. Step 6 (selection screen) was delivered last;
-the user had not reported on it yet when these notes were written. Ask them to confirm it.
+The user confirmed steps 1 to 5 work in the editor. Step 6 (selection screen) has not been confirmed by the user yet; ask them to confirm it.
+Latest check (complete.zip, whole project): headless Godot 4.4.1 with placeholder PNGs ran the main scene with no errors and the smoke test passed all 254 checks.
 Decisions the user made: upgrades are tracked PER CHARACTER; characters are ALL AVAILABLE FROM THE START
 (no unlocking); some upgrades are shared (Max Health, Move Speed) and some are unique to a character.
 
@@ -32,7 +32,7 @@ Decisions the user made: upgrades are tracked PER CHARACTER; characters are ALL 
 - Roster order is now cat, android, bruiser, dragon (character_roster.gd).
 - Health bar is red and bigger (hud.gd, HEALTH_BAR_SIZE).
 - Attack interface gained movement_speed_multiplier() (default 1.0); player.gd multiplies walking speed by it.
-- Mobs now steer toward the player (mob.gd _integrate_forces, turn_rate export; the player joins group "player" in player.gd _ready). The shop has a character picker (hud.gd _shop_character, _refresh_shop_picker): it opens on the selected character and switching it doesn't change who is played; SaveData's current character is switched to match while the shop is open and restored on close.
+- Mobs now steer toward the player (mob.gd _integrate_forces, turn_rate export; the player joins group "player" in player.gd _ready). The shop has a character picker (hud.gd _shop_character, _refresh_shop_picker): it opens on the selected character and switching it doesn't change who is played; (Historical: this used to switch a global "current character" in SaveData; Step F removed that, see Cleanup progress.)
 - NEW: optional SECONDARY ATTACK on the right mouse button (see "Secondary attacks" below). Nico gets a throwing
   knife; Seven gets an instant dash that ends in a delayed, damage-only shockwave. Untested until the user runs it.
 - Alistar's dash now has a wind-up phase (dash_attack.gd: windup_time, windup_move_multiplier) before the dash and slam. Direction is locked at the moment of the press. Untested until the user runs it.
@@ -86,7 +86,7 @@ Characters and roster
 Attacks
 - attack.gd (class Attack, extends Node2D): the interface. The player only calls these:
   - configure(damage, range_mult, speed_mult, bonuses) at the start of each run. `bonuses` is a
-    dictionary of EVERY upgrade's bonus by id; read your own unique ones with bonus("id").
+    dictionary of EVERY upgrade's bonus by id; read your own unique ones with bonus(SaveData.SOME_UPGRADE).
   - start_run(), cancel(), tick(delta), try_attack(target) -> bool.
   - is_controlling_movement(): true while the attack moves the player itself (dash); the player then
     skips its normal movement and attack input.
@@ -97,18 +97,18 @@ Attacks
   The slash and all the slash-art exports live on the attack scene's root node. Per-attack values saved
   in those .tscn files (slash_time, slash_frames, slash_flip_y, slash_angle_offset...) override script defaults.
 - projectile_attack.gd (class ProjectileAttack) + projectile.gd (class Projectile) + dragon_projectile_attack.tscn.
-  Projectiles are added to the CURRENT SCENE (not under the player), join group "projectiles", and
+  Projectiles are added to the CURRENT SCENE (not under the player), join Groups.PROJECTILES, and
   cancel() clears that group. They are drawn in code.
 - dash_attack_base.gd (class DashAttackBase) holds what both dashes share. dash_attack.gd (class DashAttack) + bruiser_dash_attack.tscn
   is Alistar's: wind-up, locked direction, instant knockback "slam". delayed_dash_attack.gd (class DelayedDashAttack) +
   android_dash_attack.tscn is Seven's right click: instant dash, delayed "slash dash" blast (damage only), path damage, movement
   lock. Both are drawn in code. See "Cleanup progress" for the details.
 - throwing_knife_attack.gd (class ThrowingKnifeAttack) + knife_projectile.gd (class KnifeProjectile) +
-  cat_knife_attack.tscn: Nico's secondary. Knives are added to the CURRENT SCENE, join group "knives".
+  cat_knife_attack.tscn: Nico's secondary. Knives are added to the CURRENT SCENE, join Groups.KNIVES.
 
 Core
-- player.gd: set_character(data) copies stats, swaps sprites/tint, instantiates the attack, and calls
-  SaveData.set_character(id, upgrade_ids, upgrade_overrides). apply_upgrades() builds the bonuses
+- player.gd: set_character(data) copies stats, swaps sprites/tint, instantiates the attack(s).
+  apply_upgrades() (reads SaveData for self.character) builds the bonuses
   dictionary and calls attack.configure(). Regeneration lives here (_update_regen). The @export
   `character` on the Player node in player.tscn is only a default (cat.tres); at runtime Main overrides it.
 - mob.gd: take_damage(), knockback(direction, speed, duration) (tweens linear_velocity back to the mob's
@@ -117,9 +117,10 @@ Core
 - hud.gd: health bar, coins, results, title buttons, reset button + dialog; it creates the shop and selection screens
   (shop_screen.gd, character_select_screen.gd) and connects them. The shop opens on the SELECTED character.
 - save_data.gd (class SaveData): UPGRADES dictionary (9 upgrades, see DESIGN_NOTES); per-character levels;
-  get_level / bonus / get_cost / try_buy use the CURRENT character (set with set_character);
-  get_level_for / bonus_for work for any character (used by the selection cards);
-  available_upgrades(), upgrade_info(id) (applies the per-character wording overrides);
+  there is NO "current character" any more: get_level / bonus / get_cost / is_maxed / try_buy / available_upgrades /
+  is_available / upgrade_info all take the CharacterData as their FIRST argument, e.g. SaveData.bonus(character, SaveData.DAMAGE).
+  Upgrade ids are constants (SaveData.MAX_HEALTH, DAMAGE, ATTACK_RANGE, ATTACK_SPEED, SPEED, REGEN, PROJECTILE_COUNT, KNOCKBACK,
+  DASH_DISTANCE); the TEXT of each id is a save-file key and must never change. upgrade_info applies the per-character wording overrides;
   get/set_last_character(). Save file sections: [progress] coins + last_character, [upgrades_<id>] per character.
 
 ## Conventions and gotchas learned (please follow these)
@@ -127,8 +128,8 @@ Core
   grep -cP '^\t' and grep -cP '^ +\S'. (The shell is plain sh: no process substitution.)
 - GDScript type inference: an untyped export (@export var x = 1.0) makes `var y := x * 2` fail
   with "Cannot infer the type". Declare exports with := or an explicit type.
-- You cannot run Godot in your sandbox, so code is untested until the user runs it. Say so, and ask the
-  user to paste any error message they get. Common cause of "unknown class" errors or a missing Character
+- You CAN run Godot in your sandbox (see "Testing" below), so run the code before delivering. You still can't judge looks or feel, so say that and ask the
+  user to playtest and paste any error message they get. Common cause of "unknown class" errors or a missing Character
   field: new scripts not registered yet, or a file from an earlier step not copied. Try Project > Reload
   Current Project, and check every file from earlier steps is in the project.
 - Versions drift. The user edits files in other chats and uploads files with suffixes
@@ -142,6 +143,8 @@ Core
   super.configure(...) first.
 - Mobs are hit with distance + each mob's hit_radius (not their collision shape). New attacks should reuse that through MobHits (mob_hits.gd).
 - Deliver complete updated files, or all the files that changed, and say which are new and which replace old ones.
+- Before delivering, RUN the code (see "Testing" under Cleanup progress): import, run main for a few frames, and run smoke_test.tscn.
+  Ask the user to run smoke_test.tscn (F6) after every change that touches more than one file.
 - Keep replies plain and concrete. The user likes short step-by-step explanations, a "To test" list
   after each step, and a question about the next step at the end.
 
@@ -175,7 +178,7 @@ button themselves earlier), the .tres files (balance), and the attack .tscn file
   take_damage(), like every other hit test (all mobs have it, so nothing changes in play).
 - Step C: DONE, untested until the user runs it. dash_attack.gd was split in three:
   dash_attack_base.gd (class DashAttackBase, extends Attack): cooldown, the dash movement, invulnerability, drawing helpers
-    (_pick_art, _draw_circle_art, _draw_dash_streak, _draw_landing_effect). Subclasses override _start_sequence(), _tick_phases(delta),
+    (_pick_art, _draw_circle_art, _draw_dash_streak, _draw_landing_effect). The streak has art slots (streak_texture, streak_frames, streak_width). Subclasses override _start_sequence(), _tick_phases(delta),
     _on_dash_finished(). Exports: attack_cooldown, base_dash_distance, dash_time, invulnerable_while_dashing, effect_time.
   dash_attack.gd (class DashAttack): Alistar only. windup_time, windup_move_multiplier, base_slam_radius, base_knockback_speed,
     knockback_time, post_slam_invulnerability, slam_color, slam art. Keeps the "slam" names. bruiser_dash_attack.tscn is unchanged.
@@ -189,9 +192,9 @@ button themselves earlier), the .tres files (balance), and the attack .tscn file
   (drawing, exports) is only checked by reading.
 - Step D: DONE, untested until the user runs it. hud.gd was split in three:
   shop_screen.gd (class ShopScreen, extends Control): the shop overlay. open(character) starts on that character; signals
-    coins_changed(total) and closed. Its picker switches whose upgrades are shown and moves SaveData's current character with it.
+    coins_changed(total) and closed. Its picker switches whose upgrades are shown (since Step F it no longer touches SaveData state).
   character_select_screen.gd (class CharacterSelectScreen, extends Control): the cards, Upgrades / Play / Back buttons. Owns
-    `selected` (picked on start from SaveData's last character), open(), refresh(), apply_selected_to_save(); signals
+    `selected` (picked on start from SaveData's last character), open(), refresh() (apply_selected_to_save() was removed in Step F); signals
     upgrades_requested and play_requested(character). Saves the last character on Play.
   hud.gd keeps: health bar, coins, result text, title buttons (START, SHOP, RESET), reset dialog, show_game_over / show_title,
     and start_game(character). It creates both screens (select first, shop LAST so it draws on top) and wires the signals:
@@ -199,9 +202,50 @@ button themselves earlier), the .tres files (balance), and the attack .tscn file
     character to the selected one, refreshes the cards if visible), play_requested -> _on_play_requested (hides title buttons,
     emits start_game). The moved function bodies were diffed against the originals: identical apart from names (and the shop now
     emits coins_changed instead of calling update_coins directly).
-- Step E (optional): NOT STARTED.
+- Step E: DONE, untested until the user runs it. Only player.gd changed. _update_animation(velocity, rooted) is now the single
+  place that picks the animation. _process calls it with (Vector2.ZERO, true) while an attack roots the player, and with
+  (velocity, false) otherwise. Rooted: "idle" if the frames have it, else nothing (the sprite carries on, as before; no flip changes).
+  Moving: flip_v off, sideways = "walk" + flip_h when moving right, vertical only = "up" if present else "walk". Still: "idle" or
+  sprite.stop(). Left alone on purpose: set_character still sets the sprite's starting animation to "walk".
+  (A to E done.)
+- Step F: DONE. Tested by actually RUNNING the code (see "Testing" below), not only by reading. Changes:
+  1. smoke_test.gd + smoke_test.tscn (new): open the scene, press F6. Loads every character, checks their data, plays each one's
+     attacks for ~1 s next to a test mob, builds the shop / select screen / pause menu / HUD and walks the shop open/close. Only READS
+     the save file. Prints "ALL n CHECKS PASSED" or a list of problems. Red/yellow lines in Output while it runs also count as problems.
+  2. SaveData has no global "current character" (see Core above). Removed: set_character, get_character, get_level_for, bonus_for,
+     _current, _available, _overrides. Player, ShopScreen and CharacterSelectScreen no longer sync it, which removed
+     apply_selected_to_save() and the restore-on-close in hud.gd. Save format unchanged (old saves still migrate to the cat).
+  3. groups.gd (new, class Groups): MOBS, PLAYER, PROJECTILES, KNIVES. Use Groups.MOBS, never the text "mobs". The ONE place that must stay
+     text is mob.tscn's saved group list (["mobs"]); the smoke test checks it matches.
+  4. Attack.bonus() now push_warning()s on an unknown upgrade id instead of silently returning 0 (every real id is always present).
+  5. SaveData.save_data() push_error()s if the file can't be written.
+  6. CharacterData.is_same_as(other) compares by id; the shop and select screen use it instead of ==.
+  7. Main._end_run(award_coins) holds what game_over() and exit_to_menu() shared. (game_over now also un-pauses, stops StartTimer and
+     calls Player.stop_run() again: all harmless there.)
+  8. Attack has _cooldown_left, _tick_cooldown(delta) and _aim_direction(target). Slash, projectile, knife and dash attacks use them
+     (their own copies of _cooldown_left were deleted: a new attack must NOT declare its own _cooldown_left).
+  9. Player.apply_upgrades configures primary and secondary in one loop.
+  10. overlay_builder.gd (new, class OverlayBuilder): OverlayBuilder.build(parent, dim_alpha, separation, with_panel) makes the dark backdrop +
+      centred column that the shop, select screen and pause menu all used to build by hand.
+  11. hud.gd has a TITLE_TEXT constant. start_button.gd (empty stub, unused) is meant to be deleted but was still in the user's folder in the last upload; nothing references it, so it's safe to delete.
+  ALL CLEANUP STEPS (A to F) ARE NOW DONE.
 
-## Planned cleanup (Step A done, B to E not started)
+## Paralysis (Seven's dash)
+- mob.gd paralyze(duration) / is_paralyzed(): zero velocity (enforced in _integrate_forces), no steering, knockback ignored, animation paused, sprite self_modulate tinted blue; the mob resumes its old velocity afterwards. A second paralyze only extends. Dying clears it. Player._can_hurt_us(body) skips paralysed mobs, so they do no contact damage (both the body_entered and the overlap polling). Seven's blast art is rotated by rotate_blast_art (_blast_rotation = dash direction + 90 degrees, so an image drawn with its top up has its top facing the dash); _draw_circle_art and _draw_landing_effect take an optional rotation (Alistar's slam doesn't use it). _blast_art_angle(elapsed) adds the spin: starts blast_art_spin_degrees (180) counter-clockwise of the facing and turns clockwise to it over blast_art_spin_time (0.5s from the dash's end), used by both the warning art and the landing effect.
+- dash_attack_base.gd has a new hook _on_dash_step(from_world, to_world), called each frame the dash moves. delayed_dash_attack.gd uses it to paralyse mobs the dash touches (path_width * range_mult wide) until the blast lands + paralysis_extra_time, and in _on_dash_finished paralyses everything inside the blast radius before the blast lands. Exports: paralysis_enabled, paralysis_extra_time (0.3).
+- smoke_test.gd _test_paralysis() checks it. NOTE: a headless Godot viewport is only 64x64, which clamps every dash into the corner; the test enlarges the window first. Any new test that moves the player should do the same.
+
+## Testing (new in Step F)
+- The sandbox CAN run Godot: Godot 4.4.1 headless was downloaded from github.com/godotengine/godot-builds (curl works for that URL; gh and
+  the GitHub API do not). The user's zip has no project.godot or images, so to run the code: copy the files to a new folder, add a
+  project.godot (config_version=5, run/main_scene="res://main.tscn", config/features=PackedStringArray("4.4")), generate placeholder PNGs for
+  every image the .tscn/.tres files reference (badguy1/2, dumbcatface1/2, seven1/2, seven_walk1/2, slash, slashend, slashstart), then
+  `godot --headless --import` once and `godot --headless --scene res://smoke_test.tscn`. Filter the noisy "invalid UID" warnings.
+- Mutation check done in Step F: a typo'd id in a .tres, a typo'd group constant, a renamed group in mob.tscn and a typo'd bonus() id were each
+  caught by the smoke test (the last one as a yellow warning).
+- Still can't be checked this way: how things LOOK and FEEL (art, screen layout, balance, mouse input). The user is still the playtester for that.
+
+## Planned cleanup (the original plan; Steps A to F are all done, see Cleanup progress)
 Purpose: make the code easier to read and extend. NO gameplay changes. I rated the code about 7/10: easy to
 extend (data-driven characters, one Attack interface, tuning in the Inspector) but two files are getting heavy.
 Caveat: this rating comes from the files I edited most (dash_attack.gd, hud.gd, player.gd, mob.gd,
@@ -258,7 +302,7 @@ Step D - Split hud.gd. Pull the shop into its own file (suggested shop_screen.gd
    Behavior to preserve exactly: the select screen opens from START; its Upgrades button opens the shop; the
    SHOP button on the title screen also opens it; the shop opens on the SELECTED character and its picker
    buttons switch which character's upgrades are shown WITHOUT changing who is played; while the shop is open
-   SaveData.set_character follows the shop's character and is restored to the selected one on close; StartButton
+   (Step F: SaveData no longer has a current character, so nothing needs restoring on close;) StartButton
    is disabled while the shop is open; the select cards refresh when the shop closes; the shop is built last so
    it draws above the select screen; PLAY saves the last character, hides the title buttons and emits
    start_game(selected); clicking anywhere on a card selects it (card.gui_input; children use MOUSE_FILTER_IGNORE;

@@ -69,20 +69,9 @@ func _build() -> void:
 	add_child(_root)
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# Dark overlay; it also soaks up clicks so nothing underneath can be pressed
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	_root.add_child(dim)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var center := CenterContainer.new()
-	_root.add_child(center)
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 14)
-	center.add_child(column)
+	# Dark overlay (it also soaks up clicks so nothing underneath can be pressed) with the
+	# buttons floating in the middle
+	var column := OverlayBuilder.build(_root, 0.6, 14, false)
 
 	var title := Label.new()
 	title.text = "Paused"
